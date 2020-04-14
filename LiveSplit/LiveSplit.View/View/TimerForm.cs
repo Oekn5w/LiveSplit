@@ -673,6 +673,8 @@ namespace LiveSplit.View
             this.InvokeIfRequired(() =>
             {
                 pauseMenuItem.Enabled = true;
+                loadRunMenuItem.Enabled = false;
+                saveRunMenuItem.Enabled = false;
                 splitMenuItem.Enabled = true;
                 if (CurrentState.CurrentSplitIndex == 0)
                     undoSplitMenuItem.Enabled = false;
@@ -699,6 +701,8 @@ namespace LiveSplit.View
                 {
                     pauseMenuItem.Enabled = false;
                     splitMenuItem.Enabled = false;
+                    saveRunMenuItem.Enabled = false;
+                    loadRunMenuItem.Enabled = true;
                 }
                 if (CurrentState.CurrentSplitIndex >= CurrentState.Run.Count - 1)
                     skipSplitMenuItem.Enabled = false;
@@ -711,6 +715,8 @@ namespace LiveSplit.View
             this.InvokeIfRequired(() =>
             {
                 pauseMenuItem.Enabled = true;
+                saveRunMenuItem.Enabled = false;
+                loadRunMenuItem.Enabled = false;
                 resetMenuItem.Enabled = true;
                 undoSplitMenuItem.Enabled = false;
                 skipSplitMenuItem.Enabled = true;
@@ -733,6 +739,8 @@ namespace LiveSplit.View
                 }
                 resetMenuItem.Enabled = false;
                 pauseMenuItem.Enabled = false;
+                saveRunMenuItem.Enabled = false;
+                loadRunMenuItem.Enabled = true;
                 undoPausesMenuItem.Enabled = false;
                 undoSplitMenuItem.Enabled = false;
                 skipSplitMenuItem.Enabled = false;
@@ -747,6 +755,8 @@ namespace LiveSplit.View
             {
                 splitMenuItem.Text = "Split";
                 pauseMenuItem.Enabled = true;
+                saveRunMenuItem.Enabled = false;
+                loadRunMenuItem.Enabled = false;
             });
         }
 
@@ -757,6 +767,8 @@ namespace LiveSplit.View
                 splitMenuItem.Text = "Resume";
                 undoPausesMenuItem.Enabled = true;
                 pauseMenuItem.Enabled = false;
+                saveRunMenuItem.Enabled = true;
+                loadRunMenuItem.Enabled = true;
             });
         }
 
@@ -2673,6 +2685,16 @@ namespace LiveSplit.View
             }
         }
 
+        private void SaveRun()
+        {
+            saveRunMenuItem.Text = saveRunMenuItem.Text.Equals("Foo") ? "Bar" : "Foo";
+        }
+
+        private void LoadRun()
+        {
+            loadRunMenuItem.Text = loadRunMenuItem.Text.Equals("good") ? "trailer" : "good";
+        }
+
         private void racingMenuItem_MouseHover(object sender, EventArgs e)
         {
             RaceProviderAPI raceProvider = (RaceProviderAPI)(sender as ToolStripMenuItem)?.Tag;
@@ -2688,6 +2710,16 @@ namespace LiveSplit.View
         private void resetMenuItem_Click(object sender, EventArgs e)
         {
             Reset();
+        }
+
+        private void saveRunMenuItem_Click(object sender, EventArgs e)
+        {
+            SaveRun();
+        }
+
+        private void loadRunMenuItem_Click(object sender, EventArgs e)
+        {
+            LoadRun();
         }
 
         private void pauseMenuItem_Click(object sender, EventArgs e)
@@ -2852,13 +2884,14 @@ namespace LiveSplit.View
             controlMenuItem.DropDownItems.AddRange(new ToolStripItem[] {
             splitMenuItem,
             resetMenuItem,
+            saveRunMenuItem,
+            loadRunMenuItem,
             undoSplitMenuItem,
             skipSplitMenuItem,
             pauseMenuItem,
-            undoPausesMenuItem});
-
-            controlMenuItem.DropDownItems.Add(new ToolStripSeparator());
-            controlMenuItem.DropDownItems.Add(hotkeysMenuItem);
+            undoPausesMenuItem,
+            new ToolStripSeparator(),
+            hotkeysMenuItem});
 
             hotkeysMenuItem.Checked = Settings.HotkeyProfiles[CurrentState.CurrentHotkeyProfile].GlobalHotkeysEnabled;
 
