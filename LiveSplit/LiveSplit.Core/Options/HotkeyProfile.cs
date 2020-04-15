@@ -11,7 +11,7 @@ namespace LiveSplit.Options
     {
         public KeyOrButton SplitKey { get; set; }
         public KeyOrButton ResetKey { get; set; }
-        public KeyOrButton SaveRunKey { get; set; }
+        public KeyOrButton HibernateRunKey { get; set; }
         public KeyOrButton LoadRunKey { get; set; }
         public KeyOrButton SkipKey { get; set; }
         public KeyOrButton UndoKey { get; set; }
@@ -44,11 +44,11 @@ namespace LiveSplit.Options
             else
                 hotkeyProfile.ResetKey = null;
 
-            var keySaveRun = element["SaveRunKey"];
-            if (!string.IsNullOrEmpty(keySaveRun.InnerText))
-                hotkeyProfile.SaveRunKey = new KeyOrButton(keySaveRun.InnerText);
+            var keyHibernateRun = element["HibernateRunKey"];
+            if (!string.IsNullOrEmpty(keyHibernateRun.InnerText))
+                hotkeyProfile.HibernateRunKey = new KeyOrButton(keyHibernateRun.InnerText);
             else
-                hotkeyProfile.SaveRunKey = null;
+                hotkeyProfile.HibernateRunKey = null;
 
             var keyLoadRun = element["LoadRunKey"];
             if (!string.IsNullOrEmpty(keyLoadRun.InnerText))
@@ -126,10 +126,10 @@ namespace LiveSplit.Options
                 resetKey.InnerText = ResetKey.ToString();
             parent.AppendChild(resetKey);
 
-            var saveRunKey = document.CreateElement("SaveRunKey");
-            if (saveRunKey != null)
-                saveRunKey.InnerText = SaveRunKey.ToString();
-            parent.AppendChild(saveRunKey);
+            var keyHibernateRun = document.CreateElement("HibernateRunKey");
+            if (keyHibernateRun != null)
+                keyHibernateRun.InnerText = HibernateRunKey.ToString();
+            parent.AppendChild(keyHibernateRun);
 
             var loadRunKey = document.CreateElement("LoadRunKey");
             if (loadRunKey != null)
@@ -181,7 +181,7 @@ namespace LiveSplit.Options
             {
                 SplitKey = SplitKey,
                 ResetKey = ResetKey,
-                SaveRunKey = SaveRunKey,
+                HibernateRunKey = HibernateRunKey,
                 LoadRunKey = LoadRunKey,
                 SkipKey = SkipKey,
                 UndoKey = UndoKey,
