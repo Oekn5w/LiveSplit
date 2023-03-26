@@ -44,17 +44,15 @@ namespace LiveSplit.Options
             else
                 hotkeyProfile.ResetKey = null;
 
+            hotkeyProfile.HibernateRunKey = null;
             var keyHibernateRun = element["HibernateRunKey"];
-            if (!string.IsNullOrEmpty(keyHibernateRun.InnerText))
+            if (keyHibernateRun != null && !string.IsNullOrEmpty(keyHibernateRun.InnerText))
                 hotkeyProfile.HibernateRunKey = new KeyOrButton(keyHibernateRun.InnerText);
-            else
-                hotkeyProfile.HibernateRunKey = null;
 
+            hotkeyProfile.LoadRunKey = null;
             var keyLoadRun = element["LoadRunKey"];
-            if (!string.IsNullOrEmpty(keyLoadRun.InnerText))
+            if (keyLoadRun != null && !string.IsNullOrEmpty(keyLoadRun.InnerText))
                 hotkeyProfile.LoadRunKey = new KeyOrButton(keyLoadRun.InnerText);
-            else
-                hotkeyProfile.LoadRunKey = null;
 
             var keySkip = element["SkipKey"];
             if (!string.IsNullOrEmpty(keySkip.InnerText))
@@ -127,12 +125,12 @@ namespace LiveSplit.Options
             parent.AppendChild(resetKey);
 
             var keyHibernateRun = document.CreateElement("HibernateRunKey");
-            if (keyHibernateRun != null)
+            if (HibernateRunKey != null)
                 keyHibernateRun.InnerText = HibernateRunKey.ToString();
             parent.AppendChild(keyHibernateRun);
 
             var loadRunKey = document.CreateElement("LoadRunKey");
-            if (loadRunKey != null)
+            if (LoadRunKey != null)
                 loadRunKey.InnerText = LoadRunKey.ToString();
             parent.AppendChild(loadRunKey);
 
