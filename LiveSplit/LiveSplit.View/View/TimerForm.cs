@@ -1,4 +1,4 @@
-﻿using LiveSplit.Model;
+using LiveSplit.Model;
 using LiveSplit.Model.Comparisons;
 using LiveSplit.Model.Input;
 using LiveSplit.Model.RunFactories;
@@ -83,7 +83,7 @@ namespace LiveSplit.View
 
         public const int WM_NCLBUTTONDOWN = 0xA1;
         public const int HT_CAPTION = 0x2;
-        public const string SETTINGS_PATH = "settings.cfg";
+        public const string SETTINGS_FILE = "settings.cfg";
         const int WS_MINIMIZEBOX = 0x20000;
         const int CS_DBLCLKS = 0x8;
 
@@ -107,7 +107,7 @@ namespace LiveSplit.View
         protected Task RefreshTask { get; set; }
         protected bool InvalidationRequired { get; set; }
 
-        public string BasePath { get; set; }
+        public string SettingsPath { get; set; }
         protected IEnumerable<RaceProviderAPI> RaceProvider { get; set; }
 
         private bool MousePassThrough
@@ -171,9 +171,9 @@ namespace LiveSplit.View
         [DllImport("user32.dll")]
         private static extern IntPtr GetForegroundWindow();
 
-        public TimerForm(string splitsPath = null, string layoutPath = null, string basePath = "")
+        public TimerForm(string splitsPath = null, string layoutPath = null, string settingsPath = "")
         {
-            BasePath = basePath;
+            SettingsPath = settingsPath;
             InitializeComponent();
             Init(splitsPath, layoutPath);
         }
@@ -190,7 +190,7 @@ namespace LiveSplit.View
             Invalidator = new Invalidator(this);
             SetStyle(ControlStyles.SupportsTransparentBackColor, true);
 
-            ComponentManager.BasePath = BasePath;
+            ComponentManager.BasePath = "";
 
             CurrentState = new LiveSplitState(null, this, null, null, null);
 
@@ -2500,7 +2500,7 @@ namespace LiveSplit.View
 
             try
             {
-                var settingsPath = Path.Combine(BasePath, SETTINGS_PATH);
+                var settingsPath = Path.Combine(SettingsPath, SETTINGS_FILE);
                 if (!File.Exists(settingsPath))
                     File.Create(settingsPath).Close();
 
@@ -2571,7 +2571,7 @@ namespace LiveSplit.View
         {
             try
             {
-                using (var stream = File.OpenRead(Path.Combine(BasePath, SETTINGS_PATH)))
+                using (var stream = File.OpenRead(Path.Combine(SettingsPath, SETTINGS_FILE)))
                 {
                     Settings = new XMLSettingsFactory(stream).Create();
                 }
