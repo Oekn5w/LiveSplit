@@ -27,6 +27,7 @@ namespace LiveSplit
 
                 string splitsPath = null;
                 string layoutPath = null;
+                string basePath = "";
 
                 for (var i = 0; i < args.Length; ++i)
                 {
@@ -34,8 +35,16 @@ namespace LiveSplit
                         splitsPath = args[++i];
                     else if (args[i] == "-l")
                         layoutPath = args[++i];
+                    else if (args[i] == "-b")
+                        basePath = args[++i];
+                    else if (args[i] == "-a")
+                    {
+                        basePath = args[++i];
+                        splitsPath = basePath;
+                        layoutPath = basePath;
+                    }
                 }
-                Application.Run(new TimerForm(splitsPath: splitsPath, layoutPath: layoutPath));
+                Application.Run(new TimerForm(splitsPath: splitsPath, layoutPath: layoutPath, basePath: basePath));
             }
 #if !DEBUG
             catch (Exception e)
