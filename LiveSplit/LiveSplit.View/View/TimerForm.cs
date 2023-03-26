@@ -1,4 +1,4 @@
-using LiveSplit.Model;
+﻿using LiveSplit.Model;
 using LiveSplit.Model.Comparisons;
 using LiveSplit.Model.Input;
 using LiveSplit.Model.RunFactories;
@@ -2716,7 +2716,7 @@ namespace LiveSplit.View
                             XmlElement parent = document.CreateElement("Save");
                             var startTime = Model.CurrentState.AttemptStarted;
                             XmlAttribute attributeStarted = document.CreateAttribute("started");
-                            attributeStarted.InnerText = startTime.Time.ToUniversalTime().ToString(CultureInfo.InvariantCulture);
+                            attributeStarted.InnerText = startTime.Time.ToUniversalTime().ToString("o", CultureInfo.InvariantCulture);
                             XmlAttribute attributeIsStartedSynced = document.CreateAttribute("isStartedSynced");
                             attributeIsStartedSynced.InnerText = startTime.SyncedWithAtomicClock.ToString();
                             XmlAttribute attributeIsGameTimeInitialized = document.CreateAttribute("isGameTimeInitialized");
