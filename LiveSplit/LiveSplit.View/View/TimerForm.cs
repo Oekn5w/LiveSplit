@@ -652,7 +652,7 @@ namespace LiveSplit.View
 
         private void Hook_GamepadHookInitialized(object sender, EventArgs e)
         {
-            CheckForUpdates();
+            // CheckForUpdates();
         }
 
         private void CheckForUpdates()
