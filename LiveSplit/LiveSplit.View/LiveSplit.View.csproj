@@ -224,9 +224,13 @@
   </ItemGroup>
   <ItemGroup>
     <Content Include="Resources\DefaultGameIcon.png" />
-    <Content Include="Resources\Icon.ico" />
+    <Content Include="Resources\Icon.ico">
+      <CopyToOutputDirectory>Always</CopyToOutputDirectory>
+    </Content>
     <Content Include="Resources\DownArrow.png" />
-    <Content Include="Resources\Icon.png" />
+    <Content Include="Resources\Icon.png">
+      <CopyToOutputDirectory>Always</CopyToOutputDirectory>
+    </Content>
     <Content Include="Resources\UpArrow.png" />
     <None Include="Resources\DefaultLayout.lsl">
       <SubType>Designer</SubType>
