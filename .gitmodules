@@ -101,3 +101,7 @@
 [submodule "LiveSplit/Libs/livesplit-core"]
 	path = LiveSplit/Libs/livesplit-core
 	url = https://github.com/LiveSplit/livesplit-core.git
+[submodule "LiveSplit/Components/LiveSplit.VideoAutoSplit"]
+	path = LiveSplit/Components/LiveSplit.VideoAutoSplit
+	url = git@github.com:Oekn5w/LiveSplit.VideoAutoSplit.git
+	branch = own
