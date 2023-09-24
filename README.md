@@ -67,7 +67,7 @@ The documentation for how to develop, test, and submit an Auto Splitter can be f
 
 ## Releasing
 
-1. Update versions of any components that changed to match the new LiveSplit version.
+1. Update versions of any components that changed (create a Git tag and update the factory file for each component) to match the new LiveSplit version.
 2. Create a Git tag for the new version.
 3. Download `LiveSplit_Build` from the GitHub Actions build for the latest commit on `master`.
 4. Create a GitHub release for the new version, and upload the LiveSplit build ZIP file with the correct filename (e.g. `LiveSplit_1.8.21.zip`).
@@ -81,7 +81,7 @@ The documentation for how to develop, test, and submit an Auto Splitter can be f
 
 The MIT License (MIT)
 
-Copyright (c) 2013-2020 Christopher Serr and Sergey Papushin
+Copyright (c) 2013-2023 Christopher Serr and Sergey Papushin
 
 Permission is hereby granted, free of charge, to any person obtaining a copy
 of this software and associated documentation files (the "Software"), to deal
