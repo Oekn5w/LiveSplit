@@ -40,8 +40,8 @@
 	branch = master
 [submodule "LiveSplit/Components/LiveSplit.Server"]
 	path = LiveSplit/Components/LiveSplit.Server
-	url = https://github.com/LiveSplit/LiveSplit.Server.git
-	branch = master
+	url = https://github.com/oekn5w/LiveSplit.Server.git
+	branch = own-master
 [submodule "LiveSplit/Components/LiveSplit.Sound"]
 	path = LiveSplit/Components/LiveSplit.Sound
 	url = https://github.com/LiveSplit/LiveSplit.Sound.git
