@@ -38,10 +38,6 @@
 	path = LiveSplit/Components/LiveSplit.ScriptableAutoSplit
 	url = https://github.com/LiveSplit/LiveSplit.ScriptableAutoSplit.git
 	branch = master
-[submodule "LiveSplit/Components/LiveSplit.Server"]
-	path = LiveSplit/Components/LiveSplit.Server
-	url = https://github.com/oekn5w/LiveSplit.Server.git
-	branch = own-master
 [submodule "LiveSplit/Components/LiveSplit.Sound"]
 	path = LiveSplit/Components/LiveSplit.Sound
 	url = https://github.com/LiveSplit/LiveSplit.Sound.git
@@ -101,7 +97,6 @@
 [submodule "LiveSplit/Libs/livesplit-core"]
 	path = LiveSplit/Libs/livesplit-core
 	url = https://github.com/LiveSplit/livesplit-core.git
-[submodule "LiveSplit/Components/LiveSplit.VideoAutoSplit"]
-	path = LiveSplit/Components/LiveSplit.VideoAutoSplit
-	url = git@github.com:Oekn5w/LiveSplit.VideoAutoSplit.git
-	branch = own
+[submodule "LiveSplit/Components/LiveSplit.TheRun"]
+	path = LiveSplit/Components/LiveSplit.TheRun
+	url = https://github.com/therungg/LiveSplit.TheRun

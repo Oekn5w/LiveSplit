@@ -79,13 +79,16 @@
             this.panelRefreshRate = new System.Windows.Forms.Panel();
             this.txtRefreshRate = new System.Windows.Forms.TextBox();
             this.labelRefreshRate = new System.Windows.Forms.Label();
-            this.chkAllowGamepads = new System.Windows.Forms.CheckBox();
+            this.panelPort = new System.Windows.Forms.Panel();
+            this.txtServerPort = new System.Windows.Forms.TextBox();
+            this.lblPort = new System.Windows.Forms.Label();
             this.tableLayoutPanel1.SuspendLayout();
             this.groupBox1.SuspendLayout();
             this.tableLayoutPanel2.SuspendLayout();
             this.grpHotkeyProfiles.SuspendLayout();
             this.tableLayoutPanel3.SuspendLayout();
             this.panelRefreshRate.SuspendLayout();
+            this.panelPort.SuspendLayout();
             this.SuspendLayout();
             // 
             // tableLayoutPanel1
@@ -109,6 +112,7 @@
             this.tableLayoutPanel1.Controls.Add(this.chkSimpleSOB, 0, 1);
             this.tableLayoutPanel1.Controls.Add(this.chkWarnOnReset, 1, 1);
             this.tableLayoutPanel1.Controls.Add(this.panelRefreshRate, 0, 6);
+            this.tableLayoutPanel1.Controls.Add(this.panelPort, 1, 6);
             this.tableLayoutPanel1.Dock = System.Windows.Forms.DockStyle.Fill;
             this.tableLayoutPanel1.Location = new System.Drawing.Point(7, 7);
             this.tableLayoutPanel1.Name = "tableLayoutPanel1";
@@ -724,17 +728,38 @@
             this.labelRefreshRate.TabIndex = 19;
             this.labelRefreshRate.Text = "Refresh Rate (Hz):";
             // 
-            // chkAllowGamepads
+            // panelPort
             // 
-            this.chkAllowGamepads.Anchor = ((System.Windows.Forms.AnchorStyles)((System.Windows.Forms.AnchorStyles.Left | System.Windows.Forms.AnchorStyles.Right)));
-            this.chkAllowGamepads.AutoSize = true;
-            this.chkAllowGamepads.Location = new System.Drawing.Point(7, 296);
-            this.chkAllowGamepads.Margin = new System.Windows.Forms.Padding(7, 3, 3, 3);
-            this.chkAllowGamepads.Name = "chkAllowGamepads";
-            this.chkAllowGamepads.Size = new System.Drawing.Size(168, 17);
-            this.chkAllowGamepads.TabIndex = 15;
-            this.chkAllowGamepads.Text = "Allow Gamepads as Hotkeys";
-            this.chkAllowGamepads.UseVisualStyleBackColor = true;
+            this.panelPort.Anchor = ((System.Windows.Forms.AnchorStyles)(((System.Windows.Forms.AnchorStyles.Top | System.Windows.Forms.AnchorStyles.Left) 
+            | System.Windows.Forms.AnchorStyles.Right)));
+            this.tableLayoutPanel1.SetColumnSpan(this.panelPort, 3);
+            this.panelPort.Controls.Add(this.txtServerPort);
+            this.panelPort.Controls.Add(this.lblPort);
+            this.panelPort.Location = new System.Drawing.Point(184, 572);
+            this.panelPort.Margin = new System.Windows.Forms.Padding(0);
+            this.panelPort.Name = "panelPort";
+            this.panelPort.Size = new System.Drawing.Size(196, 29);
+            this.panelPort.TabIndex = 20;
+            // 
+            // txtServerPort
+            // 
+            this.txtServerPort.Anchor = ((System.Windows.Forms.AnchorStyles)(((System.Windows.Forms.AnchorStyles.Top | System.Windows.Forms.AnchorStyles.Bottom) 
+            | System.Windows.Forms.AnchorStyles.Right)));
+            this.txtServerPort.Location = new System.Drawing.Point(139, 6);
+            this.txtServerPort.Name = "txtServerPort";
+            this.txtServerPort.Size = new System.Drawing.Size(51, 20);
+            this.txtServerPort.TabIndex = 1;
+            this.txtServerPort.TextAlign = System.Windows.Forms.HorizontalAlignment.Right;
+            // 
+            // lblPort
+            // 
+            this.lblPort.Anchor = ((System.Windows.Forms.AnchorStyles)((System.Windows.Forms.AnchorStyles.Left | System.Windows.Forms.AnchorStyles.Right)));
+            this.lblPort.AutoSize = true;
+            this.lblPort.Location = new System.Drawing.Point(4, 8);
+            this.lblPort.Name = "lblPort";
+            this.lblPort.Size = new System.Drawing.Size(63, 13);
+            this.lblPort.TabIndex = 0;
+            this.lblPort.Text = "Server Port:";
             // 
             // SettingsDialog
             // 
@@ -758,6 +783,8 @@
             this.tableLayoutPanel3.PerformLayout();
             this.panelRefreshRate.ResumeLayout(false);
             this.panelRefreshRate.PerformLayout();
+            this.panelPort.ResumeLayout(false);
+            this.panelPort.PerformLayout();
             this.ResumeLayout(false);
 
         }
@@ -814,5 +841,8 @@
         private System.Windows.Forms.Label labelRefreshRate;
         private System.Windows.Forms.Panel panelRefreshRate;
         private System.Windows.Forms.TextBox txtRefreshRate;
+        private System.Windows.Forms.Panel panelPort;
+        private System.Windows.Forms.TextBox txtServerPort;
+        private System.Windows.Forms.Label lblPort;
     }
 }
