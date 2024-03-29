@@ -107,9 +107,15 @@ namespace LiveSplit.Model
             }
         }
 
-        public void LoadRun(string gameName, string categoryName, Time time, Dictionary<string, Time> segments, AtomicDateTime started, bool isGameTimeInitialized, TimeSpan pauseTime)
+        public void ResetAndUndoAttempt()
         {
-            InternalModel.LoadRun(gameName, categoryName, time, segments, started, isGameTimeInitialized, pauseTime);
+            if (CheckDoubleTap())
+                InternalModel.ResetAndUndoAttempt();
+        }
+
+        public void LoadRun(string gameName, string categoryName, Time time, List<Tuple<string, Time>> segmentList, AtomicDateTime started, bool isGameTimeInitialized, TimeSpan pauseTime)
+        {
+            InternalModel.LoadRun(gameName, categoryName, time, segmentList, started, isGameTimeInitialized, pauseTime);
         }
 
         public void Pause()

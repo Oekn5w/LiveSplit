@@ -2781,6 +2781,13 @@ namespace LiveSplit.View
                             parent.AppendChild(elementSegments);
                             document.AppendChild(parent);
                             document.Save(hibernateDialog.FileName);
+                            DontRedraw = true;
+                            result = MessageBox.Show(this, "Run successfully written to file.\r\nDo you want reset your times to before this attempt?", "Reset & undo hibernated run?", MessageBoxButtons.YesNo, MessageBoxIcon.Question);
+                            DontRedraw = false;
+                            if (result == DialogResult.Yes)
+                            {
+                                Model.ResetAndUndoAttempt();
+                            }
                         }
                     }
                     finally
@@ -2815,7 +2822,7 @@ namespace LiveSplit.View
             if (result != DialogResult.OK)
                 return;
 
-            Dictionary<string, Time> segments = new Dictionary<string, Time>();
+            List<Tuple<string, Time>> segmentList = new List<Tuple<string, Time>>();
             foreach (XmlElement segment in document.LastChild.LastChild.ChildNodes)
             {
                 TimeSpan? segmentRealTime;
@@ -2832,7 +2839,7 @@ namespace LiveSplit.View
                 }
                 catch (FormatException) { segmentGameTime = null; }
                 catch (Exception) { return; }
-                segments.Add(segment.GetAttribute("Name").ToString(), new Time(segmentRealTime, segmentGameTime));
+                segmentList.Add(new Tuple<string, Time>(segment.GetAttribute("Name").ToString(), new Time(segmentRealTime, segmentGameTime)));
             }
 
             TimeSpan? realTime;
@@ -2858,7 +2865,7 @@ namespace LiveSplit.View
                 Model.LoadRun(document.LastChild.FirstChild.InnerText,
                         document.LastChild.ChildNodes[1].InnerText,
                         new Time(realTime, gameTime),
-                        segments,
+                        segmentList,
                         new AtomicDateTime(DateTime.Parse(document.LastChild.Attributes[0].InnerText), bool.Parse(document.LastChild.Attributes[1].InnerText)),
                         bool.Parse(document.LastChild.Attributes[2].InnerText),
                         TimeSpan.Parse(document.LastChild.ChildNodes[4].InnerText));

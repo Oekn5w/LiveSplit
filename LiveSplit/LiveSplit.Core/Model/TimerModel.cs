@@ -115,6 +115,15 @@ namespace LiveSplit.Model
             }
         }
 
+        public void ResetAndUndoAttempt()
+        {
+            if (CurrentState.CurrentPhase != TimerPhase.NotRunning)
+            {
+                Reset(false);
+                CurrentState.Run.AttemptCount--;
+            }
+        }
+
         private void ResetState(bool updateTimes)
         {
             if (CurrentState.CurrentPhase != TimerPhase.Ended)
@@ -145,7 +154,7 @@ namespace LiveSplit.Model
             CurrentState.Run.FixSplits();
         }
 
-        public void LoadRun(string gameName, string categoryName, Time time, Dictionary<string, Time> segments, AtomicDateTime started, bool isGameTimeInitialized, TimeSpan pauseTime)
+        public void LoadRun(string gameName, string categoryName, Time time, List<Tuple<string, Time>> segmentList, AtomicDateTime started, bool isGameTimeInitialized, TimeSpan pauseTime)
         {
             if (gameName != CurrentState.Run.GameName
                 || categoryName != CurrentState.Run.CategoryName)
@@ -162,15 +171,15 @@ namespace LiveSplit.Model
             CurrentState.CurrentSplitIndex = 0;
             for (int i = 0; i < CurrentState.Run.Count; i++)
             {
-                if (!segments.ContainsKey(CurrentState.Run[i].Name))
+                if (segmentList[i].Item1 != CurrentState.Run[i].Name)
                 {
                     foreach (var s in CurrentState.Run)
                         s.SplitTime = default(Time);
                     throw new MismatchedGameCategoryException();
                 }
-                if (segments[CurrentState.Run[i].Name].RealTime != null)
+                if (segmentList[i].Item2.RealTime != null)
                     CurrentState.CurrentSplitIndex = i + 1;
-                CurrentState.Run[i].SplitTime = segments[CurrentState.Run[i].Name];
+                CurrentState.Run[i].SplitTime = segmentList[i].Item2;
             }
             CurrentState.AttemptStarted = started;
             CurrentState.StartTime = TimeStamp.Now - time.RealTime.Value;
@@ -183,6 +192,7 @@ namespace LiveSplit.Model
             CurrentState.Run.HasChanged = true;
             CurrentState.TimePausedAt = TimeStamp.Now - CurrentState.StartTimeWithOffset;
             CurrentState.CurrentPhase = TimerPhase.Paused;
+            OnSplit?.Invoke(this, null);
             OnPause?.Invoke(this, null);
         }
 

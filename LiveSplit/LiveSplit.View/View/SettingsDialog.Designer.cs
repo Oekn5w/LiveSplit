@@ -79,6 +79,7 @@
             this.panelRefreshRate = new System.Windows.Forms.Panel();
             this.txtRefreshRate = new System.Windows.Forms.TextBox();
             this.labelRefreshRate = new System.Windows.Forms.Label();
+            this.chkAllowGamepads = new System.Windows.Forms.CheckBox(); 
             this.panelPort = new System.Windows.Forms.Panel();
             this.txtServerPort = new System.Windows.Forms.TextBox();
             this.lblPort = new System.Windows.Forms.Label();
@@ -728,6 +729,18 @@
             this.labelRefreshRate.TabIndex = 19;
             this.labelRefreshRate.Text = "Refresh Rate (Hz):";
             // 
+            // chkAllowGamepads
+            // 
+            this.chkAllowGamepads.Anchor = ((System.Windows.Forms.AnchorStyles)((System.Windows.Forms.AnchorStyles.Left | System.Windows.Forms.AnchorStyles.Right)));
+            this.chkAllowGamepads.AutoSize = true;
+            this.chkAllowGamepads.Location = new System.Drawing.Point(7, 296);
+            this.chkAllowGamepads.Margin = new System.Windows.Forms.Padding(7, 3, 3, 3);
+            this.chkAllowGamepads.Name = "chkAllowGamepads";
+            this.chkAllowGamepads.Size = new System.Drawing.Size(168, 17);
+            this.chkAllowGamepads.TabIndex = 15;
+            this.chkAllowGamepads.Text = "Allow Gamepads as Hotkeys";
+            this.chkAllowGamepads.UseVisualStyleBackColor = true;
+            //
             // panelPort
             // 
             this.panelPort.Anchor = ((System.Windows.Forms.AnchorStyles)(((System.Windows.Forms.AnchorStyles.Top | System.Windows.Forms.AnchorStyles.Left) 
