@@ -182,6 +182,11 @@ namespace LiveSplit.Server
                     }
                 case "pause":
                     {
+                        Model.Pause();
+                        break;
+                    }
+                case "pauseonly":
+                    {
                         if (State.CurrentPhase != TimerPhase.Paused)
                         {
                             Model.Pause();
