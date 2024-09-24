@@ -1,0 +1,34 @@
+﻿<Project Sdk="Microsoft.NET.Sdk">
+
+  <PropertyGroup>
+    <RootNamespace>LiveSplit</RootNamespace>
+    <UseWindowsForms>true</UseWindowsForms>
+
+    <GenerateResourceUsePreserializedResources>true</GenerateResourceUsePreserializedResources>
+  </PropertyGroup>
+
+  <ItemGroup>
+    <Content Include="Resources\DefaultGameIcon.png" />
+    <Content Include="Resources\Icon.ico" />
+    <Content Include="Resources\DownArrow.png" />
+    <Content Include="Resources\Icon.png" />
+    <Content Include="Resources\UpArrow.png" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <ProjectReference Include="$(LibPath)\SpeedrunComSharp\src\SpeedrunComSharp\SpeedrunComSharp.csproj" />
+    <ProjectReference Include="$(SrcPath)\LiveSplit.Core\LiveSplit.Core.csproj" />
+    <ProjectReference Include="$(SrcPath)\UpdateManager\UpdateManager.csproj" />
+    <ProjectReference Include="$(LibPath)\CustomFontDialog\CustomFontDialog\CustomFontDialog.csproj" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <PackageReference Include="System.Resources.Extensions" Version="6.0.0" />
+    <PackageReference Include="WindowsAPICodePack" Version="1.1.0" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <Reference Include="Microsoft.CSharp" />
+  </ItemGroup>
+
+</Project>

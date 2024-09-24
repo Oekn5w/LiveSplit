@@ -1,4 +1,4 @@
-﻿<h1> <img src="https://raw.githubusercontent.com/LiveSplit/LiveSplit/master/LiveSplit/Resources/Icon.png" alt="LiveSplit" height="42" width="45" align="top"/> LiveSplit</h1>
+﻿<h1> <img src="https://raw.githubusercontent.com/LiveSplit/LiveSplit/master/res/Icon.svg" alt="LiveSplit" height="42" align="top"/> LiveSplit</h1>
 
 [![GitHub release](https://img.shields.io/github/release/LiveSplit/LiveSplit.svg)](https://github.com/LiveSplit/LiveSplit/releases/latest)
 [![GitHub license](https://img.shields.io/badge/license-MIT-blue.svg)](https://raw.githubusercontent.com/LiveSplit/LiveSplit/master/LICENSE)
@@ -28,7 +28,7 @@ LiveSplit is a timer program for speedrunners that is both easy to use and full 
 
 **Dynamic Resizing:** LiveSplit can be resized to any size so that it looks good on stream. As LiveSplit’s size is changed, all of its parts are automatically scaled up in order to preserve its appearance.
 
-**Sharing Runs:** Any run can be shared to websites such as [Speedrun.com](http://speedrun.com/), [Congratsio](http://www.congratsio.com/) and [Twitter](https://twitter.com/). Splits can also be distributed using [splits i/o](https://splits.io/) and imported from a URL. You can also share a screenshot of your splits to [Imgur](http://imgur.com/) or save it as a file. Your [Twitch](http://www.twitch.tv/) title can be updated as well based on the game you are playing.
+**Sharing Runs:** Any run can be shared to [Speedrun.com](http://speedrun.com/) and [X (Twitter)](https://twitter.com/). Splits can also be distributed using [splits i/o](https://splits.io/) and imported from a URL. You can also share a screenshot of your splits to [Imgur](http://imgur.com/) or save it as a file. Your [Twitch](http://www.twitch.tv/) title can be updated as well based on the game you are playing.
 
 **Component Development:** Anyone can develop their own components that can easily be shared and used with LiveSplit. Additional downloadable components can be found in the [Components Section](https://livesplit.org/components/).
 
@@ -39,7 +39,7 @@ We need your help!
 You can browse the [Issues](https://github.com/LiveSplit/LiveSplit/issues) to find good issues to get started with. Select one that is not already done or in progress, assign yourself, and drag it over to "In Progress".
 
  1. [Fork](https://github.com/LiveSplit/LiveSplit/fork) the project
- 2. Clone your forked repo: `git clone https://github.com/YourUsername/LiveSplit.git`
+ 2. Clone your forked repo: `git clone --recursive https://github.com/YourUsername/LiveSplit.git`
  3. Create your feature/bugfix branch: `git checkout -b new-feature`
  4. Commit your changes to your new branch: `git commit -am 'Add a new feature'`
  5. Push to the branch: `git push origin new-feature`
@@ -47,16 +47,17 @@ You can browse the [Issues](https://github.com/LiveSplit/LiveSplit/issues) to fi
 
 ## Compiling
 
-LiveSplit is written in C# 7 with Visual Studio and uses .NET Framework 4.6.1. To compile LiveSplit, you need one of these versions of Visual Studio:
- - Visual Studio 2017 Community Edition or later
- - Visual Studio 2017 or later
+LiveSplit uses .NET Framework 4.6.1. To compile LiveSplit, you need the following components installed:
+- [.NET 8.0 SDK](https://dotnet.microsoft.com/en-us/download/dotnet/8.0)
+- [.NET Framework 4.6.1 Developer Pack](https://dotnet.microsoft.com/en-us/download/dotnet-framework/net461)
 
-Simply open the project with Visual Studio and it should be able to compile and run without any further configuration.
+After cloning, simply run `dotnet build LiveSplit.sln` from the root of the repository.
+
+To use Visual Studio, you must install a version that supports the .NET SDK version you installed. At the time of writing, the most recent version is [Visual Studio 2022](https://visualstudio.microsoft.com/vs/community).
 
 ## Common Compiling Issues
-1. Could not build Codaxy.Xlio due to sgen.exe not being found. Open LiveSplit\\Libs\\xlio\\Source\\Codaxy.Xlio\\Codaxy.Xlio.csproj in order to edit where it looks for this path. Look for &lt;SGen...&gt; where it defines the attribute "ToolPath". Look on your computer to find the proper path. It is typically down some path such as "C:\\Program Files (x86)\\Microsoft SDKs\\Windows\\x.xA...". Find the version you want to use and bin folder with sgen.exe in it and replace the path in the .csproj file.
-2. No submodules pulled in when you fork/clone the repo which causes the project not to build. There are two ways to remedy this:
- - Cloning for the first time: `git clone --recursive git://repo/repo.git`
+1. No submodules pulled in when you fork/clone the repo which causes the project not to build. There are two ways to remedy this:
+ - Cloning for the first time: `git clone --recursive https://github.com/LiveSplit/LiveSplit.git`
  - If already cloned, execute this in the root directory: `git submodule update --init --recursive`
 
 ## Auto Splitters
@@ -89,11 +90,13 @@ Made something cool? Consider getting it added to this list.
 
 ### Commands
 
-Commands are case sensitive and end with a carriage return and a line feed (\r\n). You can provide parameters by using a space after the command and sending the parameters afterwards (`<command><space><parameters><\r\n>`).
+Commands are case sensitive and end with a new line. You can provide parameters by using a space after the command and sending the parameters afterwards (`<command><space><parameters><newline>`).
 
-A command can respond with a message. The message ends with a carriage return and a line feed, just like a command.
+Some commands will respond with data and some will not. Every response ends with a newline character.
 
-Here's the list of commands:
+All times and deltas returned by the server are formatted according to [C#'s Constant Format Specifier](https://learn.microsoft.com/en-us/dotnet/standard/base-types/standard-timespan-format-strings#the-constant-c-format-specifier). The server will accept times in the following format: `[-][[[d.]hh:]mm:]ss[.fffffff]`. The hours field can be greated than 23, even if days are present. Individual fields do not need to be padded with zeroes. Any command that returns a time or a string can return a single hyphen `-` to indicate a "null" or invalid value. Commands that take a COMPARISON or a NAME take plain strings that may include spaces. Because it is used as a delimiter to mark the end of a command, newline characters may not appear anywhere within a command.
+
+Commands that generate no response:
 
 - startorsplit
 - split
@@ -105,6 +108,7 @@ Here's the list of commands:
 - starttimer
 - setgametime TIME
 - setloadingtimes TIME
+- addloadingtimes TIME
 - pausegametime
 - unpausegametime
 - alwayspausegametime
@@ -114,7 +118,7 @@ Here's the list of commands:
 - setsplitname INDEX NAME
 - setcurrentsplitname NAME
 
-The following commands respond with a time:
+Commands that return a time:
 
 - getdelta
 - getdelta COMPARISON
@@ -128,12 +132,18 @@ The following commands respond with a time:
 - getpredictedtime COMPARISON
 - getbestpossibletime
 
-Other commands:
+Commands that return an int:
 
-- getsplitindex
-- getcurrentsplitname
+- getsplitindex  
+(returns -1 if the timer is not running)
+
+Commands that return a string:
+
+- getcurrentsplitname  
 - getprevioussplitname
 - getcurrenttimerphase
+- ping  
+(always returns `pong`)
 
 Commands are defined at `ProcessMessage` in "CommandServer.cs".
 
@@ -146,7 +156,7 @@ import socket
 
 s = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
 s.connect(("localhost", 16834))
-s.send(b"starttimer\r\n")
+s.send(b"starttimer\n")
 ```
 
 #### Java 7+
@@ -160,7 +170,7 @@ public class MainTest {
     public static void main(String[] args) throws IOException {
         Socket socket = new Socket("localhost", 16834);
         PrintWriter writer = new PrintWriter(socket.getOutputStream());
-        writer.write("starttimer\r\n");
+        writer.println("starttimer");
         writer.flush();
         socket.close();
     }
@@ -175,12 +185,13 @@ Node.js client implementation available here: https://github.com/satanch/node-li
 
 1. Update versions of any components that changed (create a Git tag and update the factory file for each component) to match the new LiveSplit version.
 2. Create a Git tag for the new version.
-3. Download `LiveSplit_Build` from the GitHub Actions build for the new Git tag.
+3. Download `LiveSplit_Build` and `UpdateManagerExe` from the GitHub Actions build for the new Git tag.
 4. Create a GitHub release for the new version, and upload the LiveSplit build ZIP file with the correct filename (e.g. `LiveSplit_1.8.21.zip`).
-    - Create a release for [`LiveSplit.Counter`](https://github.com/LiveSplit/LiveSplit.Counter) if necessary.
 5. Modify files in [the update folder of LiveSplit.github.io](https://github.com/LiveSplit/LiveSplit.github.io/tree/master/update) and commit the changes:
-    - Copy changed files from the downloaded LiveSplit build ZIP file to the update folder.
+    - Copy changed files from the downloaded LiveSplit build ZIP file to the [update folder](https://github.com/LiveSplit/LiveSplit.github.io/tree/master/update).
+    - Copy changed files from the download Update Manager ZIP file to replace [`UpdateManagerV2.exe`](https://github.com/LiveSplit/LiveSplit.github.io/blob/master/update/UpdateManagerV2.exe) and [`UpdateManagerV2.exe.config`](https://github.com/LiveSplit/LiveSplit.github.io/blob/master/update/UpdateManagerV2.exe.config).
     - Add new versions to the update XMLs for (`update.xml`, `update.updater.xml`, and the update XMLs for any components that changed).
+    - Modify the [DLL](https://github.com/therungg/LiveSplit.TheRun/blob/main/Components/LiveSplit.TheRun.dll) and [update XML](https://github.com/therungg/LiveSplit.TheRun/blob/main/update.LiveSplit.TheRun.xml) for LiveSplit.TheRun in its repo.
     - Update the version on the [downloads page](https://github.com/LiveSplit/LiveSplit.github.io/blob/master/downloads.md).
 
 ## License
