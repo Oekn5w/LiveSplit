@@ -2494,15 +2494,15 @@ namespace LiveSplit.View
 
             try
             {
-                var settingsPath = Path.Combine(SettingsPath, SETTINGS_FILE);
-                if (!File.Exists(settingsPath))
-                    File.Create(settingsPath).Close();
+                var settingsFullPath = Path.Combine(SettingsPath, SETTINGS_FILE);
+                if (!File.Exists(settingsFullPath))
+                    File.Create(settingsFullPath).Close();
 
                 using (var memoryStream = new MemoryStream())
                 {
                     SettingsSaver.Save(Settings, memoryStream);
 
-                    using (var stream = File.Open(settingsPath, FileMode.Create, FileAccess.Write))
+                    using (var stream = File.Open(settingsFullPath, FileMode.Create, FileAccess.Write))
                     {
                         var buffer = memoryStream.GetBuffer();
                         stream.Write(buffer, 0, (int)memoryStream.Length);
@@ -2565,10 +2565,10 @@ namespace LiveSplit.View
         {
             try
             {
-                var settingsPath = Path.Combine(BasePath, SETTINGS_PATH);
-                if (File.Exists(settingsPath))
+                var settingsFullPath = Path.Combine(SettingsPath, SETTINGS_FILE);
+                if (File.Exists(settingsFullPath))
                 {
-                    using (var stream = File.OpenRead(Path.Combine(BasePath, SETTINGS_PATH)))
+                    using (var stream = File.OpenRead(settingsFullPath))
                     {
                         Settings = new XMLSettingsFactory(stream).Create();
                         return;
