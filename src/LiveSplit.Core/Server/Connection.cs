@@ -74,17 +74,21 @@ namespace LiveSplit.Server
             }
             catch (Exception e)
             {
-                Log.Error(e);
-                Disconnected?.Invoke(this, EventArgs.Empty);
+                this.Dispose();
             }
         }
 
         public virtual void Dispose()
         {
-            ReaderThread.Abort();
-            Stream.Dispose();
-            Reader.Dispose();
-            Writer.Dispose();
+            try
+            {
+                ReaderThread.Abort();
+                Stream.Dispose();
+                Reader.Dispose();
+                Writer.Dispose();
+            }
+            catch
+            { }
         }
     }
 

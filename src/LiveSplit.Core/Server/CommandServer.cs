@@ -78,9 +78,9 @@ namespace LiveSplit.Server
         {
             WaitingServerPipe?.Dispose();
 
-            foreach (var connection in PipeConnections)
+            for(int i = 0; i < PipeConnections.Count;++i)
             {
-                connection.Dispose();
+                PipeConnections[i].Dispose();
             }
 
             PipeConnections.Clear();
