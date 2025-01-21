@@ -1,8 +1,7 @@
 ﻿<Project Sdk="Microsoft.NET.Sdk">
 
   <PropertyGroup>
-    <OutDir>bin\$(Configuration)</OutDir>
-    <LangVersion>7.1</LangVersion>
+    <TargetFramework>net4.8.1</TargetFramework>
   </PropertyGroup>
 
   <ItemGroup>
@@ -21,6 +20,10 @@
     <ProjectReference Include="$(ComponentsPath)\LiveSplit.TotalPlaytime\src\LiveSplit.TotalPlaytime\LiveSplit.TotalPlaytime.csproj" />
     <ProjectReference Include="$(ComponentsPath)\LiveSplit.WorldRecord\src\LiveSplit.WorldRecord\LiveSplit.WorldRecord.csproj" />
     <ProjectReference Include="$(SrcPath)\LiveSplit.Core\LiveSplit.Core.csproj" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <PackageReference Include="PolySharp" Version="1.14.1" PrivateAssets="all" />
   </ItemGroup>
 
   <ItemGroup>
