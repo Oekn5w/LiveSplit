@@ -206,6 +206,7 @@ public partial class TimerForm : Form
         LayoutSaver = new XMLLayoutSaver();
         SettingsSaver = new XMLSettingsSaver();
         LoadSettings();
+        SetDPIAwareness();
 
         CurrentState.CurrentHotkeyProfile = Settings.HotkeyProfiles.First().Key;
 
@@ -958,47 +959,10 @@ public partial class TimerForm : Form
         var openFromURLMenuItem = new ToolStripMenuItem("From URL...");
         openFromURLMenuItem.Click += openSplitsFromURLMenuItem_Click;
         openSplitsMenuItem.DropDownItems.Add(openFromURLMenuItem);
-        var openFromSpeedrunComMenuItem = new ToolStripMenuItem("From Speedrun.com...");
-        openFromSpeedrunComMenuItem.Click += openFromSpeedrunComMenuItem_Click;
-        openSplitsMenuItem.DropDownItems.Add(openFromSpeedrunComMenuItem);
         openSplitsMenuItem.DropDownItems.Add(new ToolStripSeparator());
         var editSplitHistoryMenuItem = new ToolStripMenuItem("Edit History");
         editSplitHistoryMenuItem.Click += editSplitHistoryMenuItem_Click;
         openSplitsMenuItem.DropDownItems.Add(editSplitHistoryMenuItem);
-    }
-
-    private void openFromSpeedrunComMenuItem_Click(object sender, EventArgs e)
-    {
-        try
-        {
-            TopMost = false;
-            IsInDialogMode = true;
-
-            var runImporter = new SpeedrunComRunImporter();
-            IRun run = runImporter.Import(this);
-
-            if (run != null)
-            {
-                if (!WarnUserAboutSplitsSave())
-                {
-                    return;
-                }
-
-                if (!WarnAndRemoveTimerOnly(true))
-                {
-                    return;
-                }
-
-                run.HasChanged = true;
-                SetRun(run);
-                CurrentState.CallRunManuallyModified();
-            }
-        }
-        finally
-        {
-            TopMost = Layout.Settings.AlwaysOnTop;
-            IsInDialogMode = false;
-        }
     }
 
     private void editSplitHistoryMenuItem_Click(object sender, EventArgs e)
@@ -2807,6 +2771,21 @@ public partial class TimerForm : Form
         Settings = new StandardSettingsFactory().Create();
     }
 
+    private void SetDPIAwareness()
+    {
+        if (Environment.OSVersion.Version.Major >= LiveSplit.Options.Settings.DPI_AWARENESS_OS_MIN_VERSION && Settings.EnableDPIAwareness)
+        {
+            try
+            {
+                SetProcessDPIAware();
+            }
+            catch (Exception e)
+            {
+                Log.Error(e);
+            }
+        }
+    }
+
     private void closeSplitsMenuItem_Click(object sender, EventArgs e)
     {
         CloseSplits();
@@ -3431,4 +3410,7 @@ public partial class TimerForm : Form
             e.Effect = DragDropEffects.None;
         }
     }
+
+    [System.Runtime.InteropServices.DllImport("user32.dll")]
+    private static extern bool SetProcessDPIAware();
 }

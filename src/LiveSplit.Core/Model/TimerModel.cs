@@ -1,4 +1,5 @@
 ﻿using System;
+using System.Collections.Generic;
 using System.Linq;
 using System.Collections.Generic;
 
@@ -61,6 +62,11 @@ public class TimerModel : ITimerModel
         if (CurrentState.CurrentPhase == TimerPhase.Running && CurrentState.CurrentTime.RealTime > TimeSpan.Zero)
         {
             CurrentState.CurrentSplit.SplitTime = CurrentState.CurrentTime;
+            foreach (KeyValuePair<string, CustomVariable> kv in CurrentState.Run.Metadata.CustomVariables)
+            {
+                CurrentState.CurrentSplit.CustomVariableValues[kv.Key] = kv.Value.Value;
+            }
+
             CurrentState.CurrentSplitIndex++;
             if (CurrentState.Run.Count == CurrentState.CurrentSplitIndex)
             {
@@ -81,6 +87,7 @@ public class TimerModel : ITimerModel
             && CurrentState.CurrentSplitIndex < CurrentState.Run.Count - 1)
         {
             CurrentState.CurrentSplit.SplitTime = default;
+            CurrentState.CurrentSplit.CustomVariableValues.Clear();
             CurrentState.CurrentSplitIndex++;
             CurrentState.Run.HasChanged = true;
 
@@ -100,6 +107,7 @@ public class TimerModel : ITimerModel
 
             CurrentState.CurrentSplitIndex--;
             CurrentState.CurrentSplit.SplitTime = default;
+            CurrentState.CurrentSplit.CustomVariableValues.Clear();
             CurrentState.Run.HasChanged = true;
 
             OnUndoSplit?.Invoke(this, null);
@@ -166,6 +174,7 @@ public class TimerModel : ITimerModel
         foreach (ISegment split in CurrentState.Run)
         {
             split.SplitTime = default;
+            split.CustomVariableValues.Clear();
         }
 
         OnReset?.Invoke(this, oldPhase);
