@@ -1,4 +1,4 @@
-﻿using System;
+using System;
 using System.Collections.Generic;
 using System.ComponentModel;
 using System.Diagnostics;
@@ -3067,7 +3067,7 @@ public partial class TimerForm : Form
         }
         catch (FormatException)
         {
-            MessageBox.Show("The Livesplit Run (.lsr) file is invalid. (The hibernated time (RealTime) is either missing or invalid.)", "Livesplit Run File Error", MessageBoxButtons.OK, MessageBoxIcon.Error);
+            MessageBox.Show("The Livesplit Run (.lsr) file is invalid. (The hibernated time (RealTime) is either missing or invalid.)", "Livesplit Hibernated Run File Error", MessageBoxButtons.OK, MessageBoxIcon.Error);
             return;
         }
 
@@ -3092,15 +3092,20 @@ public partial class TimerForm : Form
         }
         catch (FormatException)
         {
-            MessageBox.Show("The Livesplit Run (.lsr) file is invalid. One or more values is formatted improperly.", "Livesplit Run File Error", MessageBoxButtons.OK, MessageBoxIcon.Error);
+            MessageBox.Show("The Livesplit Run (.lsr) file is invalid. One or more values is formatted improperly.", "Livesplit Hibernated Run File Error", MessageBoxButtons.OK, MessageBoxIcon.Error);
         }
         catch (MismatchedGameCategoryException)
         {
-            MessageBox.Show("The Livesplit Run (.lsr) file is for a different game or run category.", "Livesplit Run File Error", MessageBoxButtons.OK, MessageBoxIcon.Error);
+            MessageBox.Show("The Livesplit Run (.lsr) file is for a different game or run category.", "Livesplit Hibernated Run File Error", MessageBoxButtons.OK, MessageBoxIcon.Error);
+        }
+        catch (MismatchedSplitsException e)
+        {
+            string msg = string.Format("The Livesplit Run (.lsr) file does not have the same split names as the currently loaded splits. Fix the loaded splits to match the ones that were present when the run was hibernated.\r\n\r\nFirst split name mismatch is number: {0}\r\n\r\nName in file: \"{1}\"\r\nName in splits: \"{2}\"", e.index + 1, e.splitNameHibernated, e.splitNameCurrent);
+            MessageBox.Show(msg, "Livesplit Hibernated Run File Error", MessageBoxButtons.OK, MessageBoxIcon.Error);
         }
         catch (IndexOutOfRangeException)
         {
-            MessageBox.Show("The Livesplit Run (.lsr) file has missing attributes.", "Livesplit Run File Error", MessageBoxButtons.OK, MessageBoxIcon.Error);
+            MessageBox.Show("The Livesplit Run (.lsr) file has missing attributes.", "Livesplit Hibernated Run File Error", MessageBoxButtons.OK, MessageBoxIcon.Error);
         }
     }
 

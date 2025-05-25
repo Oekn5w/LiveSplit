@@ -1,4 +1,4 @@
-﻿using System;
+using System;
 using System.Collections.Generic;
 using System.Linq;
 using System.Collections.Generic;
@@ -211,7 +211,7 @@ public class TimerModel : ITimerModel
                     s.SplitTime = default;
                 }
 
-                throw new MismatchedGameCategoryException();
+                throw new MismatchedSplitsException(i, segmentList[i].Item1, CurrentState.Run[i].Name);
             }
 
             if (segmentList[i].Item2.RealTime != null)
