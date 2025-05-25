@@ -1,4 +1,4 @@
-using System;
+﻿using System;
 using System.Collections.Generic;
 using System.Linq;
 using System.Collections.Generic;
@@ -182,7 +182,7 @@ public class TimerModel : ITimerModel
         CurrentState.Run.FixSplits();
     }
 
-    public void LoadRun(string gameName, string categoryName, Time time, List<Tuple<string, Time>> segmentList, AtomicDateTime started, bool isGameTimeInitialized, TimeSpan pauseTime)
+    public void LoadRun(string gameName, string categoryName, Time time, List<Tuple<string, Time>> segmentList, int currentSplit, AtomicDateTime started, bool isGameTimeInitialized, TimeSpan pauseTime)
     {
         if (gameName != CurrentState.Run.GameName
             || categoryName != CurrentState.Run.CategoryName)
@@ -201,7 +201,7 @@ public class TimerModel : ITimerModel
             CurrentState.Run.FixSplits();
         }
 
-        CurrentState.CurrentSplitIndex = 0;
+        int collectedSplitIndex = 0;
         for (int i = 0; i < CurrentState.Run.Count; i++)
         {
             if (segmentList[i].Item1 != CurrentState.Run[i].Name)
@@ -216,10 +216,19 @@ public class TimerModel : ITimerModel
 
             if (segmentList[i].Item2.RealTime != null)
             {
-                CurrentState.CurrentSplitIndex = i + 1;
+                collectedSplitIndex = i + 1;
             }
 
             CurrentState.Run[i].SplitTime = segmentList[i].Item2;
+        }
+
+        if(currentSplit < 0)
+        {
+            CurrentState.CurrentSplitIndex = collectedSplitIndex;
+        }
+        else
+        {
+            CurrentState.CurrentSplitIndex = currentSplit;
         }
 
         CurrentState.AttemptStarted = started;

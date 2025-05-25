@@ -1,4 +1,4 @@
-using System;
+﻿using System;
 using System.Collections.Generic;
 using System.ComponentModel;
 using System.Diagnostics;
@@ -2953,6 +2953,9 @@ public partial class TimerForm : Form
                 XmlElement elementPauseTime = document.CreateElement("PauseTime");
                 elementPauseTime.InnerText = (CurrentState.PauseTime ?? TimeSpan.Zero).ToString();
                 XmlElement elementSegments = document.CreateElement("Segments");
+                XmlAttribute attributeCurrentSplitIndex = document.CreateAttribute("currentSplitIndex");
+                attributeCurrentSplitIndex.InnerText = CurrentState.CurrentSplitIndex.ToString();
+                elementSegments.Attributes.Append(attributeCurrentSplitIndex);
                 foreach (ISegment segment in CurrentState.Run)
                 {
                     XmlElement elementSegment = document.CreateElement("Segment");
@@ -3080,12 +3083,22 @@ public partial class TimerForm : Form
             gameTime = null;
         }
 
+        int currentSplitIndex;
+        try
+        {
+            currentSplitIndex = Convert.ToInt32(document.LastChild.LastChild.Attributes[0].InnerText);
+        }
+        catch
+        {
+            currentSplitIndex = -1;
+        }
+
         try
         {
             Model.LoadRun(document.LastChild.FirstChild.InnerText,
                     document.LastChild.ChildNodes[1].InnerText,
                     new Time(realTime, gameTime),
-                    segmentList,
+                    segmentList, currentSplitIndex,
                     new AtomicDateTime(DateTime.Parse(document.LastChild.Attributes[0].InnerText), bool.Parse(document.LastChild.Attributes[1].InnerText)),
                     bool.Parse(document.LastChild.Attributes[2].InnerText),
                     TimeSpan.Parse(document.LastChild.ChildNodes[4].InnerText));
