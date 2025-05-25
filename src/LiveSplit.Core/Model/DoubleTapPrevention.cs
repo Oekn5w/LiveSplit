@@ -119,9 +119,9 @@ public class DoubleTapPrevention : ITimerModel
             InternalModel.ResetAndUndoAttempt();
     }
 
-    public void LoadRun(string gameName, string categoryName, Time time, List<Tuple<string, Time>> segmentList, AtomicDateTime started, bool isGameTimeInitialized, TimeSpan pauseTime)
+    public void LoadRun(string gameName, string categoryName, Time time, List<Tuple<string, Time>> segmentList, int currentSplit, AtomicDateTime started, bool isGameTimeInitialized, TimeSpan pauseTime)
     {
-        InternalModel.LoadRun(gameName, categoryName, time, segmentList, started, isGameTimeInitialized, pauseTime);
+        InternalModel.LoadRun(gameName, categoryName, time, segmentList, currentSplit, started, isGameTimeInitialized, pauseTime);
     }
 
     public void Pause()

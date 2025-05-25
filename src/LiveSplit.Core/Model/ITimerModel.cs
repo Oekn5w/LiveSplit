@@ -31,7 +31,7 @@ public interface ITimerModel
     void Reset(bool updateSplits);
     void ResetAndSetAttemptAsPB();
     void ResetAndUndoAttempt();
-    void LoadRun(string gameName, string categoryName, Time time, List<Tuple<string, Time>> segmentList, AtomicDateTime started, bool isGameTimeInitialized, TimeSpan pauseTime);
+    void LoadRun(string gameName, string categoryName, Time time, List<Tuple<string, Time>> segmentList, int currentSplit, AtomicDateTime started, bool isGameTimeInitialized, TimeSpan pauseTime);
     void Pause();
     void UndoAllPauses();
     void ScrollUp();
