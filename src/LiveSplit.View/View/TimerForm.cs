@@ -1145,17 +1145,9 @@ public partial class TimerForm : Form
         {
             Model.Split();
         }
-        else if (CurrentState.CurrentPhase == TimerPhase.Paused)
-        {
-            Model.Pause();
-        }
         else if (CurrentState.CurrentPhase == TimerPhase.NotRunning)
         {
             Model.Start();
-        }
-        else if (CurrentState.CurrentPhase == TimerPhase.Ended)
-        {
-            Model.Reset();
         }
     }
 
