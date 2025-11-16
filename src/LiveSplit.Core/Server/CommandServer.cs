@@ -32,12 +32,14 @@ public class CommandServer
     protected NamedPipeServerStream WaitingServerPipe { get; set; }
 
     protected bool AlwaysPauseGameTime { get; set; }
+    protected List<IConnection> SubscriptionsTimerPhase { get; set; }
 
     public CommandServer(LiveSplitState state)
     {
         Model = new TimerModel();
         PipeConnections = [];
         TcpConnections = [];
+        SubscriptionsTimerPhase = [];
         TimeFormatter = new PreciseTimeFormatter();
 
         State = state;
@@ -45,6 +47,10 @@ public class CommandServer
 
         Model.CurrentState = State;
         State.OnStart += State_OnStart;
+        State.OnPause += State_OnPause;
+        State.OnResume += State_OnResume;
+        State.OnSplit += State_OnSplit;
+        State.OnReset += State_OnReset;
     }
 
     public void StartTcp()
@@ -60,7 +66,7 @@ public class CommandServer
     {
         StopWs();
         WsServer = new WebSocketServer(State.Settings.ServerPort);
-        WsServer.AddWebSocketService("/livesplit", () => new WsConnection(connection_MessageReceived));
+        WsServer.AddWebSocketService("/livesplit", () => new WsConnection(connection_MessageReceived, wsConnection_Disconnected));
         WsServer.Start();
         ServerState = ServerStateType.Websocket;
     }
@@ -84,6 +90,7 @@ public class CommandServer
     {
         foreach (TcpConnection connection in TcpConnections)
         {
+            SubscriptionsTimerPhase.Remove(connection);
             connection.Dispose();
         }
 
@@ -110,6 +117,7 @@ public class CommandServer
 
         foreach (Connection connection in PipeConnections)
         {
+            SubscriptionsTimerPhase.Remove(connection);
             connection.Dispose();
         }
 
@@ -153,6 +161,7 @@ public class CommandServer
         connection.MessageReceived -= connection_MessageReceived;
         connection.Disconnected -= pipeConnection_Disconnected;
         PipeConnections.Remove(connection);
+        SubscriptionsTimerPhase.Remove(connection);
         connection.Dispose();
     }
 
@@ -558,9 +567,47 @@ public class CommandServer
                 response = Model.CurrentState.Run.AttemptCount.ToString();
                 break;
             }
-			case "getcompletedcount":
+            case "getcompletedcount":
             {
                 response = State.Run.AttemptHistory.Count(x => x.Time.RealTime != null).ToString();
+                break;
+            }
+            case "subtimerphase":
+            {
+                if (args.Length < 2)
+                {
+                    Log.Error($"[Server] Command {command} incorrect usage: missing one or more arguments.");
+                    break;
+                }
+
+                switch (args[1])
+                {
+                    case "subscribe":
+                        if (!SubscriptionsTimerPhase.Contains(clientConnection))
+                        {
+                            SubscriptionsTimerPhase.Add(clientConnection);
+                        }
+
+                        break;
+                    case "unsubscribe":
+                        SubscriptionsTimerPhase.Remove(clientConnection);
+                        break;
+                    case "status":
+                        if (SubscriptionsTimerPhase.Contains(clientConnection))
+                        {
+                            response = "subscribed";
+                        }
+                        else
+                        {
+                            response = "not subscribed";
+                        }
+
+                        break;
+                    default:
+                        response = "Invalid subcommand: " + args[1];
+                        break;
+                }
+
                 break;
             }
             default:
@@ -576,12 +623,19 @@ public class CommandServer
         }
     }
 
+    private void wsConnection_Disconnected(object sender, EventArgs e)
+    {
+        var conn = (IConnection)sender;
+        SubscriptionsTimerPhase.Remove(conn);
+    }
+
     private void tcpConnection_Disconnected(object sender, EventArgs e)
     {
         var connection = (TcpConnection)sender;
         connection.MessageReceived -= connection_MessageReceived;
         connection.Disconnected -= tcpConnection_Disconnected;
         TcpConnections.Remove(connection);
+        SubscriptionsTimerPhase.Remove(connection);
         connection.Dispose();
     }
 
@@ -590,6 +644,39 @@ public class CommandServer
         if (AlwaysPauseGameTime)
         {
             State.IsGameTimePaused = true;
+        }
+
+        OnTimerPhaseChanged("Start");
+    }
+
+    private void State_OnPause(object sender, EventArgs e)
+    {
+        OnTimerPhaseChanged("Pause");
+    }
+
+    private void State_OnResume(object sender, EventArgs e)
+    {
+        OnTimerPhaseChanged("Resume");
+    }
+
+    private void State_OnSplit(object sender, EventArgs e)
+    {
+        if (State.CurrentPhase == TimerPhase.Ended)
+        {
+            OnTimerPhaseChanged("Complete");
+        }
+    }
+
+    private void State_OnReset(object sender, TimerPhase prev)
+    {
+        OnTimerPhaseChanged("Reset");
+    }
+
+    private void OnTimerPhaseChanged(string eventName)
+    {
+        foreach (IConnection conn in SubscriptionsTimerPhase)
+        {
+            conn.SendMessage("TimerPhaseChange:" + eventName);
         }
     }
 
