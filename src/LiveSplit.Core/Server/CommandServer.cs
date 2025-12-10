@@ -57,9 +57,24 @@ public class CommandServer
     {
         StopTcp();
         Server = new TcpListener(IPAddress.Any, State.Settings.ServerPort);
-        Server.Start();
-        Server.BeginAcceptTcpClient(AcceptTcpClient, null);
-        ServerState = ServerStateType.TCP;
+        try
+        {
+            Server.Start();
+            Server.BeginAcceptTcpClient(AcceptTcpClient, null);
+            ServerState = ServerStateType.TCP;
+        }
+        catch (SocketException ex)
+        {
+            Log.Error(ex.ToString());
+            if (State.CurrentPhase != TimerPhase.Running)
+            {
+                MessageBox.Show("Unable to start TCP Server. Likely the port is already in use.", "LiveSplit Server", MessageBoxButtons.OK, MessageBoxIcon.Information);
+            }
+            else
+            {
+                System.Media.SystemSounds.Exclamation.Play();
+            }
+        }
     }
 
     public void StartWs()
@@ -67,8 +82,23 @@ public class CommandServer
         StopWs();
         WsServer = new WebSocketServer(State.Settings.ServerPort);
         WsServer.AddWebSocketService("/livesplit", () => new WsConnection(connection_MessageReceived, wsConnection_Disconnected));
-        WsServer.Start();
-        ServerState = ServerStateType.Websocket;
+        try
+        {
+            WsServer.Start();
+            ServerState = ServerStateType.Websocket;
+        }
+        catch (SocketException ex)
+        {
+            Log.Error(ex.ToString());
+            if (State.CurrentPhase != TimerPhase.Running)
+            {
+                MessageBox.Show("Unable to start Websocket Server. Likely the port is already in use.", "LiveSplit Server", MessageBoxButtons.OK, MessageBoxIcon.Information);
+            }
+            else
+            {
+                System.Media.SystemSounds.Exclamation.Play();
+            }
+        }
     }
 
     public void StartNamedPipe()
