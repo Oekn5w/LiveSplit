@@ -260,10 +260,6 @@ public class TimerModel : ITimerModel
             CurrentState.CurrentPhase = TimerPhase.Running;
             OnResume?.Invoke(this, null);
         }
-        else if (CurrentState.CurrentPhase == TimerPhase.NotRunning)
-        {
-            Start(); //fuck abahbob                
-        }
     }
 
     public void UndoAllPauses()
