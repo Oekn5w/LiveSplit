@@ -19,6 +19,7 @@ internal static class Program
             Application.EnableVisualStyles();
             Application.SetCompatibleTextRenderingDefault(false);
             Environment.CurrentDirectory = Path.GetDirectoryName(Application.ExecutablePath);
+            System.Diagnostics.Process.GetCurrentProcess().PriorityClass = System.Diagnostics.ProcessPriorityClass.AboveNormal;
 
 #if !DEBUG
             Options.FiletypeRegistryHelper.RegisterFileFormatsIfNotAlreadyRegistered();

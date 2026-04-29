@@ -826,6 +826,7 @@ public partial class TimerForm : Form
 
             resetMenuItem.Enabled = false;
             pauseMenuItem.Enabled = false;
+            pauseMenuItem.Text = "Pause";
             hibernateRunMenuItem.Enabled = false;
             loadRunMenuItem.Enabled = true;
             undoPausesMenuItem.Enabled = false;
@@ -840,8 +841,8 @@ public partial class TimerForm : Form
     {
         this.InvokeIfRequired(() =>
         {
-            splitMenuItem.Text = "Split";
-            pauseMenuItem.Enabled = true;
+            pauseMenuItem.Text = "Pause";
+            splitMenuItem.Enabled = true;
             hibernateRunMenuItem.Enabled = false;
             loadRunMenuItem.Enabled = false;
         });
@@ -851,9 +852,10 @@ public partial class TimerForm : Form
     {
         this.InvokeIfRequired(() =>
         {
-            splitMenuItem.Text = "Resume";
+            pauseMenuItem.Text = "Resume";
+            pauseMenuItem.Enabled = true;
             undoPausesMenuItem.Enabled = true;
-            pauseMenuItem.Enabled = false;
+            splitMenuItem.Enabled = false;
             hibernateRunMenuItem.Enabled = true;
             loadRunMenuItem.Enabled = true;
         });
