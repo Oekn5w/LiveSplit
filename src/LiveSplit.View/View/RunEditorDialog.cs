@@ -12,6 +12,7 @@ using System.Threading.Tasks;
 using System.Windows.Forms;
 using System.Xml;
 
+using LiveSplit.Localization;
 using LiveSplit.Model;
 using LiveSplit.Model.RunImporters;
 using LiveSplit.Options;
@@ -26,12 +27,18 @@ namespace LiveSplit.View;
 
 public partial class RunEditorDialog : Form
 {
+    private static string T(string source) => UiLocalizer.Translate(source, LanguageResolver.ResolveCurrentCultureLanguage());
+
     private const int ICONINDEX = 0;
     private const int SEGMENTNAMEINDEX = 1;
     private const int SPLITTIMEINDEX = 2;
     private const int SEGMENTTIMEINDEX = 3;
     private const int BESTSEGMENTINDEX = 4;
     private const int CUSTOMCOMPARISONSINDEX = 5;
+
+    private const int HISTORY_SPLITTIMEINDEX = 2;
+    private const int HISTORY_SEGMENTTIMEINDEX = 3;
+    private const int HISTORY_SEGMENTBESTDIFFINDEX = 4;
 
     private const int MAXADDITIONSPERADDRANGE = 1000;
 
@@ -44,15 +51,28 @@ public partial class RunEditorDialog : Form
     protected Time PreviousPersonalBestTime;
     private readonly CancellationTokenSource FillCbxGameTaskToken = new();
 
+    private int? SelectedAttemptIndex = null;
+    private IList<TimeSpan?> _cachedSegTimes = null;
+    private IList<TimeSpan?> _cachedSplitTimes = null;
+    private IList<TimeSpan?> _cachedSegmentBestDiffs = null;
+    private int _cacheAttemptIndex = -1;
+    private TimingMethod _cacheMethod;
+
+    private const int HistoryPageSize = 50;
+    private int currentPage = 1;
+    private int totalPages = 1;
+    private IList<Attempt> _filteredAttempts = new List<Attempt>();
+
     protected bool IsGridTab => tabControl.SelectedTab == RealTime || tabControl.SelectedTab == GameTime;
     protected bool IsMetadataTab => tabControl.SelectedTab == Metadata;
+    protected bool IsHistoryMode => pnlHistory.Visible;
 
     public List<Image> ImagesToDispose { get; set; }
 
     protected TimingMethod SelectedMethod
     {
-        get => tabControl.SelectedTab.Text == "Real Time" ? TimingMethod.RealTime : TimingMethod.GameTime;
-        set => tabControl.SelectTab(value.ToString());
+        get => tabControl.SelectedTab == RealTime ? TimingMethod.RealTime : TimingMethod.GameTime;
+        set => tabControl.SelectTab(value == TimingMethod.RealTime ? RealTime : GameTime);
     }
 
     public int CurrentSplitIndexOffset { get; set; }
@@ -146,6 +166,34 @@ public partial class RunEditorDialog : Form
         }
     }
 
+    private class AttemptComboItem
+    {
+        public Attempt Attempt { get; }
+        private readonly string displayText;
+
+        public AttemptComboItem(Attempt attempt, string displayText)
+        {
+            Attempt = attempt;
+            this.displayText = displayText;
+        }
+
+        public override string ToString() => displayText;
+    }
+
+    private class MonthFilterItem
+    {
+        public int Year { get; }
+        public int Month { get; }
+
+        public MonthFilterItem(int year, int month)
+        {
+            Year = year;
+            Month = month;
+        }
+
+        public override string ToString() => $"{Year}/{Month:D2}";
+    }
+
     public RunEditorDialog(LiveSplitState state)
     {
         InitializeComponent();
@@ -177,6 +225,7 @@ public partial class RunEditorDialog : Form
         runGrid.CellValidating += runGrid_CellValidating;
         runGrid.CellEndEdit += runGrid_CellEndEdit;
         runGrid.SelectionChanged += runGrid_SelectionChanged;
+        runGrid.DataError += runGrid_DataError;
 
         var iconColumn = new DataGridViewImageColumn
         {
@@ -191,6 +240,7 @@ public partial class RunEditorDialog : Form
         var column = new DataGridViewTextBoxColumn
         {
             Name = "Segment Name",
+            HeaderText = "Segment Name",
             MinimumWidth = 120,
             SortMode = DataGridViewColumnSortMode.NotSortable
         };
@@ -199,6 +249,7 @@ public partial class RunEditorDialog : Form
         column = new DataGridViewTextBoxColumn
         {
             Name = "Split Time",
+            HeaderText = "Split Time",
             Width = 100,
             AutoSizeMode = DataGridViewAutoSizeColumnMode.None
         };
@@ -209,6 +260,7 @@ public partial class RunEditorDialog : Form
         column = new DataGridViewTextBoxColumn
         {
             Name = "Segment Time",
+            HeaderText = "Segment Time",
             Width = 100,
             AutoSizeMode = DataGridViewAutoSizeColumnMode.None
         };
@@ -219,6 +271,7 @@ public partial class RunEditorDialog : Form
         column = new DataGridViewTextBoxColumn
         {
             Name = "Best Segment",
+            HeaderText = "Best Segment",
             Width = 100,
             AutoSizeMode = DataGridViewAutoSizeColumnMode.None
         };
@@ -248,6 +301,16 @@ public partial class RunEditorDialog : Form
         UpdateSegmentList();
         RefreshAutoSplittingUI();
         SetClickEvents(this);
+
+        cbxAttemptSelect.SelectedIndexChanged += cbxAttemptSelect_SelectedIndexChanged;
+        btnPrevPage.Click += btnPrevPage_Click;
+        btnNextPage.Click += btnNextPage_Click;
+        chkCompletedOnly.CheckedChanged += chkCompletedOnly_CheckedChanged;
+        chkPbSegmentsOnly.CheckedChanged += chkPbSegmentsOnly_CheckedChanged;
+        cbxMonthFilter.SelectedIndexChanged += cbxMonthFilter_SelectedIndexChanged;
+        btnDeleteAttempt.Click += btnDeleteAttempt_Click;
+
+        UiLocalizer.Apply(this, LanguageResolver.ResolveCurrentCultureLanguage());
     }
 
     private string[] SearchForGameName(string name)
@@ -437,14 +500,19 @@ public partial class RunEditorDialog : Form
 
     private void UpdateButtonsStatus()
     {
-        if (!AllowChangingSegments)
+        bool canModifySegments = AllowChangingSegments && !IsHistoryMode;
+
+        btnAdd.Enabled = canModifySegments;
+        btnInsert.Enabled = canModifySegments;
+        btnOther.Enabled = canModifySegments;
+        btnAddComparison.Enabled = canModifySegments;
+        btnImportComparison.Enabled = canModifySegments;
+
+        if (!canModifySegments)
         {
-            btnAdd.Enabled = false;
             btnRemove.Enabled = false;
-            btnInsert.Enabled = false;
             btnMoveDown.Enabled = false;
             btnMoveUp.Enabled = false;
-            btnOther.Enabled = false;
         }
         else
         {
@@ -523,6 +591,12 @@ public partial class RunEditorDialog : Form
 
     private void runGrid_CellParsing(object sender, DataGridViewCellParsingEventArgs e)
     {
+        if (SelectedAttemptIndex != null)
+        {
+            ParseHistoryCell(e.Value, e.RowIndex, e.ColumnIndex, e);
+            return;
+        }
+
         ParsingResults parsingResults = ParseCell(e.Value, e.RowIndex, e.ColumnIndex, true);
         if (parsingResults.Parsed)
         {
@@ -533,6 +607,97 @@ public partial class RunEditorDialog : Form
         {
             e.ParsingApplied = false;
         }
+    }
+
+    private void ParseHistoryCell(object value, int rowIndex, int columnIndex, DataGridViewCellParsingEventArgs e)
+    {
+        if (columnIndex == HISTORY_SEGMENTBESTDIFFINDEX)
+        {
+            e.ParsingApplied = false;
+            return;
+        }
+
+        if (columnIndex == SEGMENTNAMEINDEX)
+        {
+            e.ParsingApplied = false;
+            return;
+        }
+
+        if (columnIndex != HISTORY_SPLITTIMEINDEX && columnIndex != HISTORY_SEGMENTTIMEINDEX)
+        {
+            e.ParsingApplied = false;
+            return;
+        }
+
+        int attemptIndex = SelectedAttemptIndex.Value;
+        TimingMethod method = SelectedMethod;
+        ISegment segment = Run[rowIndex];
+
+        if (string.IsNullOrWhiteSpace(value?.ToString()))
+        {
+            if (segment.SegmentHistory.ContainsKey(attemptIndex))
+            {
+                var time = segment.SegmentHistory[attemptIndex];
+                time[method] = null;
+                segment.SegmentHistory[attemptIndex] = time;
+            }
+
+            e.Value = null;
+            e.ParsingApplied = true;
+            AfterHistoryEdit();
+            return;
+        }
+
+        TimeSpan newSegmentTime;
+        TimeSpan newSplitTime = TimeSpan.Zero; // Only meaningful when editing the Split Time column
+
+        try
+        {
+            var parsed = TimeSpanParser.Parse(value.ToString());
+
+            if (columnIndex == HISTORY_SEGMENTTIMEINDEX)
+            {
+                newSegmentTime = parsed;
+            }
+            else
+            {
+                IList<TimeSpan?> splitTimes = HistoryTimeCalculator.GetSplitTimesForAttempt(Run, attemptIndex, method);
+                TimeSpan? prevSplitTime = rowIndex > 0 ? splitTimes[rowIndex - 1] : TimeSpan.Zero;
+                if (prevSplitTime == null)
+                    prevSplitTime = TimeSpan.Zero;
+
+                newSplitTime = parsed;
+                if (newSplitTime < prevSplitTime.Value)
+                    newSplitTime = prevSplitTime.Value;
+
+                newSegmentTime = newSplitTime - prevSplitTime.Value;
+            }
+        }
+        catch
+        {
+            e.ParsingApplied = false;
+            return;
+        }
+
+        if (segment.SegmentHistory.TryGetValue(attemptIndex, out Time existing))
+        {
+            existing[method] = newSegmentTime;
+            segment.SegmentHistory[attemptIndex] = existing;
+        }
+        else
+        {
+            var time = new Time();
+            time[method] = newSegmentTime;
+            segment.SegmentHistory[attemptIndex] = time;
+        }
+
+        // Store a TimeSpan matching the column's semantic value (split vs segment time).
+        // This mirrors normal mode (ParseCell returns TimeSpan) and keeps the cell's
+        // underlying value consistent with the column. CellFormatting will reformat
+        // for display via the cache after AfterHistoryEdit invalidates the columns.
+        e.Value = columnIndex == HISTORY_SPLITTIMEINDEX ? newSplitTime : newSegmentTime;
+        e.ParsingApplied = true;
+        AfterHistoryEdit();
     }
 
     private ParsingResults ParseCell(object value, int rowIndex, int columnIndex, bool shouldFix)
@@ -632,10 +797,356 @@ public partial class RunEditorDialog : Form
         return new ParsingResults(false, null);
     }
 
+    private void InvalidateHistoryCache()
+    {
+        _cacheAttemptIndex = -1;
+        _cachedSegTimes = null;
+        _cachedSplitTimes = null;
+        _cachedSegmentBestDiffs = null;
+    }
+
+    private void AfterHistoryEdit()
+    {
+        InvalidateHistoryCache();
+        Run.FixSplits();
+        RaiseRunEdited();
+        runGrid.InvalidateColumn(HISTORY_SPLITTIMEINDEX);
+        runGrid.InvalidateColumn(HISTORY_SEGMENTTIMEINDEX);
+        runGrid.InvalidateColumn(HISTORY_SEGMENTBESTDIFFINDEX);
+    }
+
+    private void EnsureHistoryCache()
+    {
+        if (_cacheAttemptIndex == SelectedAttemptIndex.Value && _cacheMethod == SelectedMethod)
+            return;
+        _cacheAttemptIndex = SelectedAttemptIndex.Value;
+        _cacheMethod = SelectedMethod;
+        _cachedSegTimes = HistoryTimeCalculator.GetSegmentTimesForAttempt(Run, _cacheAttemptIndex, _cacheMethod);
+        _cachedSplitTimes = HistoryTimeCalculator.GetSplitTimesForAttempt(Run, _cacheAttemptIndex, _cacheMethod);
+        _cachedSegmentBestDiffs = HistoryTimeCalculator.GetSegmentBestDiffsForAttempt(Run, _cacheAttemptIndex, _cacheMethod);
+    }
+
+    private void SwitchToHistoryMode(int attemptIndex)
+    {
+        InvalidateHistoryCache();
+
+        // Remove columns beyond Segment Name (keep Icon=0, SegmentName=1)
+        while (runGrid.Columns.Count > 2)
+            runGrid.Columns.RemoveAt(2);
+
+        // Add Split Time column
+        var splitCol = new DataGridViewTextBoxColumn
+        {
+            Name = "Split Time",
+            HeaderText = T("Split Time"),
+            Width = 100,
+            AutoSizeMode = DataGridViewAutoSizeColumnMode.None,
+            SortMode = DataGridViewColumnSortMode.NotSortable
+        };
+        splitCol.DefaultCellStyle.Alignment = DataGridViewContentAlignment.MiddleRight;
+        runGrid.Columns.Add(splitCol);
+
+        // Add Segment Time column
+        var segCol = new DataGridViewTextBoxColumn
+        {
+            Name = "Segment Time",
+            HeaderText = T("Segment Time"),
+            Width = 100,
+            AutoSizeMode = DataGridViewAutoSizeColumnMode.None,
+            SortMode = DataGridViewColumnSortMode.NotSortable
+        };
+        segCol.DefaultCellStyle.Alignment = DataGridViewContentAlignment.MiddleRight;
+        runGrid.Columns.Add(segCol);
+
+        // Add Best Segment Diff column (read-only)
+        var diffCol = new DataGridViewTextBoxColumn
+        {
+            Name = "Best Segment Diff",
+            HeaderText = T("Best Segment Diff"),
+            Width = 120,
+            AutoSizeMode = DataGridViewAutoSizeColumnMode.None,
+            ReadOnly = true,
+            SortMode = DataGridViewColumnSortMode.NotSortable
+        };
+        diffCol.DefaultCellStyle.Alignment = DataGridViewContentAlignment.MiddleRight;
+        runGrid.Columns.Add(diffCol);
+
+        // Make Segment Name read-only in history mode
+        runGrid.Columns[SEGMENTNAMEINDEX].ReadOnly = true;
+
+        // Set history mode AFTER columns are fully configured
+        // (prevents intermediate repaints from using history formatter with wrong column state)
+        SelectedAttemptIndex = attemptIndex;
+        InvalidateHistoryCache();
+        runGrid.Invalidate();
+    }
+
+    private void SwitchToNormalMode()
+    {
+        SelectedAttemptIndex = null;
+        InvalidateHistoryCache();
+
+        // Remove all columns after Icon
+        while (runGrid.Columns.Count > 1)
+            runGrid.Columns.RemoveAt(1);
+
+        // Restore normal columns (matching constructor column setup)
+        var segNameCol = new DataGridViewTextBoxColumn
+        {
+            Name = "Segment Name",
+            HeaderText = T("Segment Name"),
+            MinimumWidth = 120,
+            SortMode = DataGridViewColumnSortMode.NotSortable
+        };
+        runGrid.Columns.Add(segNameCol);
+
+        var splitCol = new DataGridViewTextBoxColumn
+        {
+            Name = "Split Time",
+            HeaderText = T("Split Time"),
+            Width = 100,
+            AutoSizeMode = DataGridViewAutoSizeColumnMode.None,
+            SortMode = DataGridViewColumnSortMode.NotSortable
+        };
+        splitCol.DefaultCellStyle.Alignment = DataGridViewContentAlignment.MiddleRight;
+        runGrid.Columns.Add(splitCol);
+
+        var segCol = new DataGridViewTextBoxColumn
+        {
+            Name = "Segment Time",
+            HeaderText = T("Segment Time"),
+            Width = 100,
+            AutoSizeMode = DataGridViewAutoSizeColumnMode.None,
+            SortMode = DataGridViewColumnSortMode.NotSortable
+        };
+        segCol.DefaultCellStyle.Alignment = DataGridViewContentAlignment.MiddleRight;
+        runGrid.Columns.Add(segCol);
+
+        var bestCol = new DataGridViewTextBoxColumn
+        {
+            Name = "Best Segment",
+            HeaderText = T("Best Segment"),
+            Width = 100,
+            AutoSizeMode = DataGridViewAutoSizeColumnMode.None,
+            SortMode = DataGridViewColumnSortMode.NotSortable
+        };
+        bestCol.DefaultCellStyle.Alignment = DataGridViewContentAlignment.MiddleRight;
+        runGrid.Columns.Add(bestCol);
+
+        // Restore segment name column editability
+        runGrid.Columns[SEGMENTNAMEINDEX].ReadOnly = false;
+
+        // Re-add custom comparison columns (from Run.CustomComparisons)
+        foreach (string comparison in Run.CustomComparisons)
+        {
+            if (comparison == Model.Run.PersonalBestComparisonName) continue;
+            var customCol = new DataGridViewTextBoxColumn
+            {
+                Name = comparison,
+                HeaderText = comparison,
+                Width = 100,
+                AutoSizeMode = DataGridViewAutoSizeColumnMode.None,
+                SortMode = DataGridViewColumnSortMode.NotSortable
+            };
+            customCol.DefaultCellStyle.Alignment = DataGridViewContentAlignment.MiddleRight;
+            runGrid.Columns.Add(customCol);
+        }
+
+        runGrid.Invalidate();
+    }
+
+    private void RefreshHistoryList()
+    {
+        var method = SelectedMethod;
+        DateTime? fromDate = null;
+        DateTime? toDate = null;
+        if (cbxMonthFilter.SelectedItem is MonthFilterItem selectedMonth)
+        {
+            fromDate = new DateTime(selectedMonth.Year, selectedMonth.Month, 1);
+            toDate = fromDate.Value.AddMonths(1).AddTicks(-1);
+        }
+        var filter = new RunHistoryFilter(
+            CompletedOnly: chkCompletedOnly.Checked,
+            PbSegmentsOnly: chkPbSegmentsOnly.Checked,
+            FromDate: fromDate,
+            ToDate: toDate,
+            Method: method
+        );
+        _filteredAttempts = RunHistoryService.GetFilteredAttempts(Run, filter);
+
+        totalPages = _filteredAttempts.Count == 0 ? 1 : (_filteredAttempts.Count + HistoryPageSize - 1) / HistoryPageSize;
+        if (currentPage > totalPages) currentPage = totalPages;
+        if (currentPage < 1) currentPage = 1;
+
+        var pageAttempts = RunHistoryService.GetPage(_filteredAttempts, currentPage, HistoryPageSize);
+
+        cbxAttemptSelect.Items.Clear();
+        foreach (var attempt in pageAttempts)
+        {
+            string timeStr = attempt.Time[method] != null ? TimeFormatter.Format(attempt.Time[method].Value) : "—";
+            string dateStr = attempt.Started.HasValue ? attempt.Started.Value.Time.ToString("yyyy/MM/dd") : "—";
+            cbxAttemptSelect.Items.Add(new AttemptComboItem(attempt, $"#{attempt.Index} — {timeStr} — {dateStr}"));
+        }
+
+        lblPageInfo.Text = string.Format(T("Page {0} / {1}"), currentPage, totalPages);
+        btnPrevPage.Enabled = currentPage > 1;
+        btnNextPage.Enabled = currentPage < totalPages;
+
+        if (cbxAttemptSelect.Items.Count > 0)
+        {
+            cbxAttemptSelect.SelectedIndex = 0;
+            // SwitchToHistoryMode will be called by cbxAttemptSelect.SelectedIndexChanged
+        }
+        else
+        {
+            cbxAttemptSelect.Text = T("No matching attempts");
+            btnDeleteAttempt.Enabled = false;
+        }
+    }
+
+    private void cbxAttemptSelect_SelectedIndexChanged(object sender, EventArgs e)
+    {
+        if (cbxAttemptSelect.SelectedItem is AttemptComboItem item)
+        {
+            SwitchToHistoryMode(item.Attempt.Index);
+            btnDeleteAttempt.Enabled = true;
+        }
+        else
+        {
+            btnDeleteAttempt.Enabled = false;
+        }
+    }
+
+    private void btnPrevPage_Click(object sender, EventArgs e)
+    {
+        if (currentPage > 1)
+        {
+            currentPage--;
+            RefreshHistoryList();
+        }
+    }
+
+    private void btnNextPage_Click(object sender, EventArgs e)
+    {
+        if (currentPage < totalPages)
+        {
+            currentPage++;
+            RefreshHistoryList();
+        }
+    }
+
+    private void chkCompletedOnly_CheckedChanged(object sender, EventArgs e)
+    {
+        currentPage = 1;
+        RefreshHistoryList();
+    }
+
+    private void chkPbSegmentsOnly_CheckedChanged(object sender, EventArgs e)
+    {
+        currentPage = 1;
+        RefreshHistoryList();
+    }
+
+    private void cbxMonthFilter_SelectedIndexChanged(object sender, EventArgs e)
+    {
+        currentPage = 1;
+        RefreshHistoryList();
+    }
+
+    private void PopulateMonthFilter()
+    {
+        cbxMonthFilter.SelectedIndexChanged -= cbxMonthFilter_SelectedIndexChanged;
+
+        var previousMonth = cbxMonthFilter.SelectedItem as MonthFilterItem;
+
+        cbxMonthFilter.Items.Clear();
+        cbxMonthFilter.Items.Add("All");
+
+        var months = Run.AttemptHistory
+            .Where(a => a.Started.HasValue)
+            .Select(a => new { a.Started.Value.Time.Year, a.Started.Value.Time.Month })
+            .Distinct()
+            .OrderByDescending(m => m.Year)
+            .ThenByDescending(m => m.Month)
+            .ToList();
+
+        foreach (var m in months)
+            cbxMonthFilter.Items.Add(new MonthFilterItem(m.Year, m.Month));
+
+        bool restored = false;
+        if (previousMonth != null)
+        {
+            foreach (var item in cbxMonthFilter.Items)
+            {
+                if (item is MonthFilterItem mfi && mfi.Year == previousMonth.Year && mfi.Month == previousMonth.Month)
+                {
+                    cbxMonthFilter.SelectedItem = item;
+                    restored = true;
+                    break;
+                }
+            }
+        }
+        if (!restored)
+            cbxMonthFilter.SelectedIndex = 0;
+
+        cbxMonthFilter.SelectedIndexChanged += cbxMonthFilter_SelectedIndexChanged;
+    }
+
     private void runGrid_CellFormatting(object sender, DataGridViewCellFormattingEventArgs e)
     {
         if (e.RowIndex < Run.Count)
         {
+            if (SelectedAttemptIndex != null)
+            {
+                // History mode formatting
+                if (e.ColumnIndex == ICONINDEX)
+                {
+                    e.Value = Run[e.RowIndex].Icon;
+                    return;
+                }
+                if (e.ColumnIndex == SEGMENTNAMEINDEX)
+                {
+                    e.Value = Run[e.RowIndex].Name;
+                    e.FormattingApplied = true;
+                    return;
+                }
+                if (e.ColumnIndex == HISTORY_SPLITTIMEINDEX || e.ColumnIndex == HISTORY_SEGMENTTIMEINDEX || e.ColumnIndex == HISTORY_SEGMENTBESTDIFFINDEX)
+                {
+                    EnsureHistoryCache();
+                    TimeSpan? value = null;
+                    if (e.ColumnIndex == HISTORY_SPLITTIMEINDEX && _cachedSplitTimes != null)
+                        value = _cachedSplitTimes[e.RowIndex];
+                    else if (e.ColumnIndex == HISTORY_SEGMENTTIMEINDEX && _cachedSegTimes != null)
+                        value = _cachedSegTimes[e.RowIndex];
+                    else if (e.ColumnIndex == HISTORY_SEGMENTBESTDIFFINDEX && _cachedSegmentBestDiffs != null)
+                        value = _cachedSegmentBestDiffs[e.RowIndex];
+
+                    if (value == null)
+                    {
+                        e.Value = "";
+                        e.FormattingApplied = true;
+                    }
+                    else if (e.ColumnIndex == HISTORY_SEGMENTBESTDIFFINDEX)
+                    {
+                        // Format Best Segment diff with sign
+                        string sign = value.Value >= TimeSpan.Zero ? "+" : "-";
+                        e.Value = sign + TimeFormatter.Format(value.Value.Duration());
+                        // Color: positive = red (slower), negative = green (faster)
+                        e.CellStyle.ForeColor = value.Value >= TimeSpan.Zero
+                            ? Color.FromArgb(204, 52, 44)
+                            : Color.FromArgb(26, 160, 64);
+                        e.FormattingApplied = true;
+                    }
+                    else
+                    {
+                        e.Value = TimeFormatter.Format(value.Value);
+                        e.FormattingApplied = true;
+                    }
+                    return;
+                }
+                return; // Other columns in history mode: show nothing
+            }
+
             if (e.ColumnIndex == SPLITTIMEINDEX)
             {
                 TimeSpan? comparisonValue = Run[e.RowIndex].PersonalBestSplitTime[SelectedMethod];
@@ -702,22 +1213,39 @@ public partial class RunEditorDialog : Form
         }
     }
 
+    private void runGrid_DataError(object sender, DataGridViewDataErrorEventArgs e)
+    {
+        // Avoid throwing into the WinForms message loop, but log so real bugs
+        // (e.g. parsing/formatting issues introduced by future changes) are not
+        // silently swallowed.
+        if (e.Exception != null)
+        {
+            Log.Error(e.Exception);
+        }
+        else
+        {
+            Log.Error($"DataGridView data error at row {e.RowIndex}, column {e.ColumnIndex}, context {e.Context}.");
+        }
+
+        e.ThrowException = false;
+    }
+
     private void runGrid_CellDoubleClick(object sender, DataGridViewCellEventArgs e)
     {
         if (e.ColumnIndex == ICONINDEX && e.RowIndex >= 0 && e.RowIndex < Run.Count)
         {
             var dialog = new OpenFileDialog
             {
-                Filter = "Image Files|*.BMP;*.JPG;*.GIF;*.JPEG;*.PNG|All files (*.*)|*.*"
+                Filter = T("Image Files|*.BMP;*.JPG;*.GIF;*.JPEG;*.PNG|All files (*.*)|*.*")
             };
             bool multiEdit = runGrid.SelectedCells.Count > 1;
             if (!string.IsNullOrEmpty(Run[e.RowIndex].Name) && !multiEdit)
             {
-                dialog.Title = "Set Icon for " + Run[e.RowIndex].Name + "...";
+                dialog.Title = string.Format(T("Set Icon for {0}..."), Run[e.RowIndex].Name);
             }
             else
             {
-                dialog.Title = "Set Icon...";
+                dialog.Title = T("Set Icon...");
             }
 
             DialogResult result = dialog.ShowDialog();
@@ -770,7 +1298,7 @@ public partial class RunEditorDialog : Form
         catch (Exception ex)
         {
             Log.Error(ex);
-            MessageBox.Show("Could not load image!", "Error", MessageBoxButtons.OK, MessageBoxIcon.Error);
+            MessageBox.Show(T("Could not load image!"), T("Error"), MessageBoxButtons.OK, MessageBoxIcon.Error);
         }
     }
 
@@ -800,14 +1328,14 @@ public partial class RunEditorDialog : Form
         var dialog = new OpenFileDialog();
         if (!string.IsNullOrEmpty(GameName))
         {
-            dialog.Title = "Set Icon for " + GameName + "...";
+            dialog.Title = string.Format(T("Set Icon for {0}..."), GameName);
         }
         else
         {
-            dialog.Title = "Set Game Icon...";
+            dialog.Title = T("Set Game Icon...");
         }
 
-        dialog.Filter = "Image Files|*.BMP;*.JPG;*.GIF;*.JPEG;*.PNG|All files (*.*)|*.*";
+        dialog.Filter = T("Image Files|*.BMP;*.JPG;*.GIF;*.JPEG;*.PNG|All files (*.*)|*.*");
         DialogResult result = dialog.ShowDialog();
         if (result == DialogResult.OK)
         {
@@ -820,7 +1348,7 @@ public partial class RunEditorDialog : Form
             catch (Exception ex)
             {
                 Log.Error(ex);
-                MessageBox.Show("Could not load image!", "Error", MessageBoxButtons.OK, MessageBoxIcon.Error);
+                MessageBox.Show(T("Could not load image!"), T("Error"), MessageBoxButtons.OK, MessageBoxIcon.Error);
             }
         }
     }
@@ -836,7 +1364,7 @@ public partial class RunEditorDialog : Form
             openFileDialog.InitialDirectory = initialPath;
         }
 
-        openFileDialog.Filter = "LiveSplit Layout (*.lsl)|*.lsl|All files (*.*)|*.*";
+        openFileDialog.Filter = T("LiveSplit Layout (*.lsl)|*.lsl|All files (*.*)|*.*");
         if (openFileDialog.ShowDialog() != DialogResult.OK)
         {
             return;
@@ -1399,7 +1927,7 @@ public partial class RunEditorDialog : Form
             Log.Error(ex);
         }
 
-        MessageBox.Show("Could not download the icon of the game!", "Error", MessageBoxButtons.OK, MessageBoxIcon.Error);
+        MessageBox.Show(T("Could not download the icon of the game!"), T("Error"), MessageBoxButtons.OK, MessageBoxIcon.Error);
     }
 
     private void downloadBoxartToolStripMenuItem_Click(object sender, EventArgs e)
@@ -1435,14 +1963,14 @@ public partial class RunEditorDialog : Form
             Log.Error(ex);
         }
 
-        MessageBox.Show("Could not download the box art of the game!", "Error", MessageBoxButtons.OK, MessageBoxIcon.Error);
+        MessageBox.Show(T("Could not download the box art of the game!"), T("Error"), MessageBoxButtons.OK, MessageBoxIcon.Error);
     }
 
     private void openFromURLMenuItem_Click(object sender, EventArgs e)
     {
         string url = null;
 
-        if (DialogResult.OK == InputBox.Show("Open Game Icon from URL", "URL:", ref url))
+        if (DialogResult.OK == InputBox.Show(T("Open Game Icon from URL"), T("URL:"), ref url))
         {
             try
             {
@@ -1461,13 +1989,13 @@ public partial class RunEditorDialog : Form
                 catch (Exception ex)
                 {
                     Log.Error(ex);
-                    MessageBox.Show("The URL was not recognized as an image.", "Error", MessageBoxButtons.OK, MessageBoxIcon.Error);
+                    MessageBox.Show(T("The URL was not recognized as an image."), T("Error"), MessageBoxButtons.OK, MessageBoxIcon.Error);
                 }
             }
             catch (Exception ex)
             {
                 Log.Error(ex);
-                MessageBox.Show("The Game Icon couldn't be downloaded.", "Error", MessageBoxButtons.OK, MessageBoxIcon.Error);
+                MessageBox.Show(T("The Game Icon couldn't be downloaded."), T("Error"), MessageBoxButtons.OK, MessageBoxIcon.Error);
             }
         }
     }
@@ -1499,9 +2027,9 @@ public partial class RunEditorDialog : Form
         column.DefaultCellStyle.Alignment = DataGridViewContentAlignment.MiddleRight;
         column.SortMode = DataGridViewColumnSortMode.NotSortable;
         var rightClickMenu = new ContextMenuStrip();
-        var renameItem = new ToolStripMenuItem("Rename");
+        var renameItem = new ToolStripMenuItem(T("Rename"));
         renameItem.Click += (s, e) => RenameComparison(column);
-        var removeItem = new ToolStripMenuItem("Remove");
+        var removeItem = new ToolStripMenuItem(T("Remove"));
         removeItem.Click += (s, e) => RemoveComparison(column);
         rightClickMenu.Items.Add(renameItem);
         rightClickMenu.Items.Add(removeItem);
@@ -1514,7 +2042,7 @@ public partial class RunEditorDialog : Form
     {
         string name = column.Name;
         string newName = name;
-        DialogResult dialogResult = InputBox.Show("Rename Comparison", "Comparison Name:", ref newName);
+        DialogResult dialogResult = InputBox.Show(T("Rename Comparison"), T("Comparison Name:"), ref newName);
         if (dialogResult == DialogResult.OK)
         {
             if (!Run.Comparisons.Contains(newName))
@@ -1544,7 +2072,7 @@ public partial class RunEditorDialog : Form
                 }
                 else
                 {
-                    DialogResult result = MessageBox.Show(this, "A Comparison name cannot start with [Race].", "Invalid Comparison Name", MessageBoxButtons.RetryCancel, MessageBoxIcon.Error);
+                    DialogResult result = MessageBox.Show(this, T("A Comparison name cannot start with [Race]."), T("Invalid Comparison Name"), MessageBoxButtons.RetryCancel, MessageBoxIcon.Error);
                     if (result == DialogResult.Retry)
                     {
                         RenameComparison(column);
@@ -1553,7 +2081,7 @@ public partial class RunEditorDialog : Form
             }
             else if (newName != name)
             {
-                DialogResult result = MessageBox.Show(this, "A Comparison with this name already exists.", "Comparison Already Exists", MessageBoxButtons.RetryCancel, MessageBoxIcon.Error);
+                DialogResult result = MessageBox.Show(this, T("A Comparison with this name already exists."), T("Comparison Already Exists"), MessageBoxButtons.RetryCancel, MessageBoxIcon.Error);
                 if (result == DialogResult.Retry)
                 {
                     RenameComparison(column);
@@ -1593,7 +2121,7 @@ public partial class RunEditorDialog : Form
     private void btnAddComparison_Click(object sender, EventArgs e)
     {
         string name = "";
-        DialogResult result = InputBox.Show("New Comparison", "Comparison Name:", ref name);
+        DialogResult result = InputBox.Show(T("New Comparison"), T("Comparison Name:"), ref name);
         if (result == DialogResult.OK)
         {
             if (!Run.Comparisons.Contains(name))
@@ -1605,7 +2133,7 @@ public partial class RunEditorDialog : Form
                 }
                 else
                 {
-                    result = MessageBox.Show(this, "A Comparison name cannot start with [Race].", "Invalid Comparison Name", MessageBoxButtons.RetryCancel, MessageBoxIcon.Error);
+                    result = MessageBox.Show(this, T("A Comparison name cannot start with [Race]."), T("Invalid Comparison Name"), MessageBoxButtons.RetryCancel, MessageBoxIcon.Error);
                     if (result == DialogResult.Retry)
                     {
                         btnAddComparison_Click(sender, e);
@@ -1614,7 +2142,7 @@ public partial class RunEditorDialog : Form
             }
             else
             {
-                result = MessageBox.Show(this, "A Comparison with this name already exists.", "Comparison Already Exists", MessageBoxButtons.RetryCancel, MessageBoxIcon.Error);
+                result = MessageBox.Show(this, T("A Comparison with this name already exists."), T("Comparison Already Exists"), MessageBoxButtons.RetryCancel, MessageBoxIcon.Error);
                 if (result == DialogResult.Retry)
                 {
                     btnAddComparison_Click(sender, e);
@@ -1634,6 +2162,11 @@ public partial class RunEditorDialog : Form
             tableLayoutPanel1.SetRowSpan(tabControl, 1);
             runGrid.Visible = true;
             runGrid.Invalidate();
+            if (IsHistoryMode)
+            {
+                InvalidateHistoryCache();
+                runGrid.Invalidate();
+            }
         }
         else
         {
@@ -1648,11 +2181,11 @@ public partial class RunEditorDialog : Form
     protected void RefreshAutoSplittingUI()
     {
         lblDescription.Text = Run.AutoSplitter == null
-            ? "There is no Auto Splitter available for this game."
-            : Run.AutoSplitter.Description;
+            ? T("There is no Auto Splitter available for this game.")
+            : T(Run.AutoSplitter.Description);
         btnActivate.Text = Run.IsAutoSplitterActive()
-            ? "Deactivate"
-            : "Activate";
+            ? T("Deactivate")
+            : T("Activate");
         btnActivate.Enabled = Run.AutoSplitter != null;
         btnSettings.Enabled = Run.IsAutoSplitterActive() && Run.AutoSplitter.Component.GetSettingsControl(LayoutMode.Vertical) != null;
         btnWebsite.Visible = Run.AutoSplitter != null && Run.AutoSplitter.Website != null;
@@ -1825,7 +2358,7 @@ public partial class RunEditorDialog : Form
         Run.ClearHistory();
         Fix();
         RaiseRunEdited();
-        MessageBox.Show(this, "History cleared!", "History cleared", MessageBoxButtons.OK, MessageBoxIcon.Information);
+            MessageBox.Show(this, T("History cleared!"), T("History cleared"), MessageBoxButtons.OK, MessageBoxIcon.Information);
     }
 
     private void clearTimesToolStripMenuItem_Click(object sender, EventArgs e)
@@ -1835,7 +2368,7 @@ public partial class RunEditorDialog : Form
         RebuildComparisonColumns();
         Fix();
         TimesModified();
-        MessageBox.Show(this, "Times cleared!", "Times cleared", MessageBoxButtons.OK, MessageBoxIcon.Information);
+            MessageBox.Show(this, T("Times cleared!"), T("Times cleared"), MessageBoxButtons.OK, MessageBoxIcon.Information);
     }
 
     private void cleanSumOfBestToolStripMenuItem_Click(object sender, EventArgs e)
@@ -1849,17 +2382,25 @@ public partial class RunEditorDialog : Form
             if (!alwaysCancel)
             {
                 var formatter = new ShortTimeFormatter();
-                string messageText = formatter.Format(parameters.timeBetween) + " between "
-                    + (parameters.startingSegment != null ? parameters.startingSegment.Name : "the start of the run") + " and " + parameters.endingSegment.Name
-                    + (parameters.combinedSumOfBest != null ? ", which is faster than the Combined Best Segments of " + formatter.Format(parameters.combinedSumOfBest) : "");
+                string messageText = formatter.Format(parameters.timeBetween) + " " + T("between") + " "
+                    + (parameters.startingSegment != null ? parameters.startingSegment.Name : T("the start of the run")) + " " + T("and") + " " + parameters.endingSegment.Name
+                    + (parameters.combinedSumOfBest != null ? T(", which is faster than the Combined Best Segments of ") + formatter.Format(parameters.combinedSumOfBest) : "");
                 if (parameters.attempt.Ended.HasValue)
                 {
-                    messageText += " in a run on " + parameters.attempt.Ended.Value.Time.ToLocalTime().ToString("M/d/yyyy");
+                    messageText += T(" in a run on ") + parameters.attempt.Ended.Value.Time.ToLocalTime().ToString("M/d/yyyy");
                 }
 
                 if (!pastResponses.ContainsKey(messageText))
                 {
-                    DialogResult result = MessageBox.Show(this, "You had a " + (parameters.method == TimingMethod.RealTime ? "Real Time" : "Game Time") + " segment time of " + messageText + ". Do you think that this segment time is inaccurate and should be removed?", "Remove Time From Segment History?", MessageBoxButtons.YesNoCancel, MessageBoxIcon.Question);
+                    DialogResult result = MessageBox.Show(
+                        this,
+                        string.Format(
+                            T("You had a {0} segment time of {1}. Do you think that this segment time is inaccurate and should be removed?"),
+                            parameters.method == TimingMethod.RealTime ? T("Real Time") : T("Game Time"),
+                            messageText),
+                        T("Remove Time From Segment History?"),
+                        MessageBoxButtons.YesNoCancel,
+                        MessageBoxIcon.Question);
                     if (result == DialogResult.Yes)
                     {
                         pastResponses.Add(messageText, true);
@@ -1888,8 +2429,8 @@ public partial class RunEditorDialog : Form
         {
             MessageBox.Show(
                 this,
-                "No times to clean. There are no potentially invalid segment history elements in the Sum of Best.",
-                "No times to clean",
+                T("No times to clean. There are no potentially invalid segment history elements in the Sum of Best."),
+                T("No times to clean"),
                 MessageBoxButtons.OK,
                 MessageBoxIcon.Information
            );
@@ -1946,6 +2487,53 @@ public partial class RunEditorDialog : Form
     private void cbxGameName_Validated(object sender, EventArgs e)
     {
         GameName = cbxGameName.Text;
+    }
+
+    private void btnDeleteAttempt_Click(object sender, EventArgs e)
+    {
+        if (!(cbxAttemptSelect.SelectedItem is AttemptComboItem item))
+            return;
+
+        int attemptIndex = item.Attempt.Index;
+        DialogResult result = MessageBox.Show(
+            string.Format(T("Are you sure you want to delete attempt #{0}?"), attemptIndex),
+            T("Confirm Deletion"),
+            MessageBoxButtons.YesNo,
+            MessageBoxIcon.Warning);
+
+        if (result != DialogResult.Yes)
+            return;
+
+        AttemptDeletionHelper.DeleteAttempt(Run, attemptIndex);
+        Run.FixSplits();
+        RaiseRunEdited();
+        PopulateMonthFilter();
+        RefreshHistoryList();
+
+        // If no more attempts, exit history mode
+        if (cbxAttemptSelect.Items.Count == 0)
+        {
+            SwitchToNormalMode();
+        }
+    }
+
+    private void btnToggleHistory_Click(object sender, EventArgs e)
+    {
+        bool show = !pnlHistory.Visible;
+        tableLayoutPanel1.RowStyles[6].Height = show ? 60F : 0F;
+        pnlHistory.Visible = show;
+        btnToggleHistory.Text = show ? T("History ▲") : T("History ▼");
+        if (show)
+        {
+            currentPage = 1;
+            PopulateMonthFilter();
+            RefreshHistoryList();
+        }
+        else
+        {
+            SwitchToNormalMode();
+        }
+        UpdateButtonsStatus();
     }
 
     private void RunEditorDialog_FormClosing(object sender, FormClosingEventArgs e)

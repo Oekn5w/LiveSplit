@@ -22,6 +22,7 @@ using LiveSplit.Model.Input;
 using LiveSplit.Model.RunFactories;
 using LiveSplit.Model.RunImporters;
 using LiveSplit.Model.RunSavers;
+using LiveSplit.Localization;
 using LiveSplit.Options;
 using LiveSplit.Options.SettingsFactories;
 using LiveSplit.Options.SettingsSavers;
@@ -81,7 +82,14 @@ public partial class TimerForm : Form
 
     private bool DontRedraw = false;
 
+    private bool AllowResizing = false;
+    private bool AllowMoving = false;
+
     protected Region UpdateRegion { get; set; }
+
+    private ToolStripMenuItem languageMenuItem;
+    private ToolStripMenuItem followSystemLanguageMenuItem;
+    private readonly Dictionary<ToolStripMenuItem, AppLanguage> languageMenuItems = new();
 
     public const int WM_NCLBUTTONDOWN = 0xA1;
     public const int HT_CAPTION = 0x2;
@@ -152,6 +160,10 @@ public partial class TimerForm : Form
     private bool MousePassThroughState = false;
 
     private bool IsForegroundWindow => GetForegroundWindow() == Handle;
+    private AppLanguage CurrentLanguage => LanguageResolver.ResolveCurrentCultureLanguage();
+    private AppLanguage ConfiguredLanguage => LanguageResolver.Resolve(Settings?.UILanguage);
+    private string T(string source) => UiLocalizer.Translate(source, CurrentLanguage);
+    private string TK(string key, string fallback) => UiLocalizer.TranslateKey(key, fallback, CurrentLanguage);
 
     private float? ResizingInitialAspectRatio { get; set; } = null;
 
@@ -204,7 +216,9 @@ public partial class TimerForm : Form
         LayoutSaver = new XMLLayoutSaver();
         SettingsSaver = new XMLSettingsSaver();
         LoadSettings();
+        InitializeLanguageMenu();
         SetDPIAwareness();
+        UiLocalizer.Apply(this, CurrentLanguage);
 
         CurrentState.CurrentHotkeyProfile = Settings.HotkeyProfiles.First().Key;
 
@@ -388,7 +402,7 @@ public partial class TimerForm : Form
             var raceProviderItem = new ToolStripMenuItem()
             {
                 Name = $"{raceProvider.ProviderName}racesMenuItem",
-                Text = $"{raceProvider.ProviderName} Races",
+                Text = string.Format(T("{0} Races"), raceProvider.ProviderName),
                 Tag = raceProvider
             };
             raceProviderItem.MouseHover += racingMenuItem_MouseHover;
@@ -417,6 +431,88 @@ public partial class TimerForm : Form
         }
 
         Text = currentName;
+    }
+
+    private void InitializeLanguageMenu()
+    {
+        languageMenuItem ??= new ToolStripMenuItem();
+        languageMenuItem.Text = TK(LocalizationKeys.LanguageMenu, "Language");
+        languageMenuItem.DropDownItems.Clear();
+        languageMenuItems.Clear();
+
+        followSystemLanguageMenuItem = new ToolStripMenuItem(TK(LocalizationKeys.LanguageFollowSystem, "Follow System"))
+        {
+            CheckOnClick = true
+        };
+        followSystemLanguageMenuItem.Click += (s, e) => SwitchUILanguage(AppLanguage.Auto);
+        languageMenuItem.DropDownItems.Add(followSystemLanguageMenuItem);
+        languageMenuItem.DropDownItems.Add(new ToolStripSeparator());
+
+        foreach (AppLanguage language in UiTextCatalog.Languages)
+        {
+            var languageItem = new ToolStripMenuItem(language.DisplayName)
+            {
+                CheckOnClick = true
+            };
+            languageItem.Click += LanguageMenuItem_Click;
+            languageMenuItem.DropDownItems.Add(languageItem);
+            languageMenuItems[languageItem] = language;
+        }
+
+        if (RightClickMenu.Items.Contains(languageMenuItem))
+        {
+            UpdateLanguageMenuChecks();
+            return;
+        }
+
+        int insertIndex = RightClickMenu.Items.IndexOf(toolStripSeparator4);
+        if (insertIndex < 0)
+        {
+            insertIndex = RightClickMenu.Items.IndexOf(aboutMenuItem);
+        }
+        if (insertIndex < 0)
+        {
+            insertIndex = RightClickMenu.Items.Count;
+        }
+
+        RightClickMenu.Items.Insert(insertIndex, languageMenuItem);
+        UpdateLanguageMenuChecks();
+    }
+
+    private void LanguageMenuItem_Click(object sender, EventArgs e)
+    {
+        if (sender is ToolStripMenuItem languageItem && languageMenuItems.TryGetValue(languageItem, out AppLanguage language))
+        {
+            SwitchUILanguage(language);
+        }
+    }
+
+    private void UpdateLanguageMenuChecks()
+    {
+        bool isAuto = LanguageResolver.IsAuto(Settings?.UILanguage);
+        if (followSystemLanguageMenuItem != null)
+        {
+            followSystemLanguageMenuItem.Checked = isAuto;
+        }
+
+        foreach (KeyValuePair<ToolStripMenuItem, AppLanguage> pair in languageMenuItems)
+        {
+            pair.Key.Checked = !isAuto && pair.Value.Equals(ConfiguredLanguage);
+        }
+    }
+
+    private void SwitchUILanguage(AppLanguage language)
+    {
+        Settings.UILanguage = LanguageResolver.ToSettingValue(language);
+        SaveSettingsToDisk();
+        UpdateLanguageMenuChecks();
+
+        MessageBox.Show(
+            this,
+            TK(LocalizationKeys.LanguageRestartRequired, "Language change will take effect after restarting LiveSplit."),
+            TK(LocalizationKeys.LanguageMenu, "Language"),
+            MessageBoxButtons.OK,
+            MessageBoxIcon.Information);
     }
 
     private void CurrentState_OnSwitchComparisonNext(object sender, EventArgs e)
@@ -467,6 +563,18 @@ public partial class TimerForm : Form
     {
         // Invalidate the entire form at least once per second, to avoid parts of the form not being redrawn when necessary in some cases
         InvalidationRequired = true;
+
+        if (CurrentLanguage.RequiresLocalization && IsHandleCreated && !IsDisposed)
+        {
+            try
+            {
+                BeginInvoke(new Action(() => UiLocalizer.ApplyOpenForms(CurrentLanguage)));
+            }
+            catch (Exception ex)
+            {
+                Log.Error(ex);
+            }
+        }
 
         if (ShouldRefreshRaces)
         {
@@ -596,7 +704,7 @@ public partial class TimerForm : Form
 
         var newRaceItem = new ToolStripMenuItem
         {
-            Text = "New Race..."
+            Text = T("New Race...")
         };
         newRaceItem.Click += (s, e) => raceProvider.CreateRace?.Invoke(Model);
         menuItemsToAdd.Add(newRaceItem);
@@ -613,7 +721,7 @@ public partial class TimerForm : Form
         }
 
         string time = new RegularTimeFormatter().Format(timeSpan);
-        string title = string.Format("[{0}] {1} ({2}/{3} Finished)", time, gameAndGoal, race.Finishes, race.NumEntrants - race.Forfeits);
+        string title = string.Format(T("[{0}] {1} ({2}/{3} Finished)"), time, gameAndGoal, race.Finishes, race.NumEntrants - race.Forfeits);
         item.Text = title.EscapeMenuItemText();
     }
 
@@ -623,6 +731,7 @@ public partial class TimerForm : Form
         {
             var form = new SpeedRunsLiveForm(CurrentState, model, raceId);
             TopMost = false;
+            UiLocalizer.Apply(form, CurrentLanguage);
             form.Show(this);
             TopMost = CurrentState.LayoutSettings.AlwaysOnTop;
         }
@@ -635,6 +744,7 @@ public partial class TimerForm : Form
             string gameName = CurrentState.Run.GameName;
             string gameCategory = CurrentState.Run.CategoryName;
             var inputBox = new NewRaceInputBox();
+            UiLocalizer.Apply(inputBox, CurrentLanguage);
             TopMost = false;
             DialogResult result = inputBox.Show(ref gameName, ref gameCategory);
             if (result == DialogResult.OK)
@@ -648,6 +758,7 @@ public partial class TimerForm : Form
                 }
 
                 var form = new SpeedRunsLiveForm(CurrentState, model, gameName, id, gameCategory);
+                UiLocalizer.Apply(form, CurrentLanguage);
                 form.Show(this);
             }
 
@@ -1006,6 +1117,7 @@ public partial class TimerForm : Form
     {
         using (var editHistoryDialog = new EditHistoryDialog(Settings.RecentSplits.Select(x => x.Path)))
         {
+            UiLocalizer.Apply(editHistoryDialog, CurrentLanguage);
             if (editHistoryDialog.ShowDialog(this) != DialogResult.Cancel)
             {
                 Settings.RecentSplits = new List<RecentSplitsFile>(Settings.RecentSplits.Where(x => editHistoryDialog.History.Contains(x.Path)));
@@ -1050,6 +1162,7 @@ public partial class TimerForm : Form
     {
         using (var editHistoryDialog = new EditHistoryDialog(Settings.RecentLayouts))
         {
+            UiLocalizer.Apply(editHistoryDialog, CurrentLanguage);
 
             if (editHistoryDialog.ShowDialog(this) != DialogResult.Cancel)
             {
@@ -1068,7 +1181,7 @@ public partial class TimerForm : Form
             TopMost = false;
             string url = null;
 
-            if (DialogResult.OK == InputBox.Show("Open Layout from URL", "URL:", ref url))
+            if (DialogResult.OK == InputBox.Show(T("Open Layout from URL"), T("URL:"), ref url))
             {
                 try
                 {
@@ -1098,7 +1211,7 @@ public partial class TimerForm : Form
                     {
                         Log.Error(ex);
                         DontRedraw = true;
-                        MessageBox.Show(this, "The selected file was not recognized as a layout file. (" + ex.Message + ")", "Error", MessageBoxButtons.OK, MessageBoxIcon.Error);
+                        MessageBox.Show(this, T("The selected file was not recognized as a layout file. (") + ex.Message + ")", T("Error"), MessageBoxButtons.OK, MessageBoxIcon.Error);
                         DontRedraw = false;
                     }
                 }
@@ -1106,7 +1219,7 @@ public partial class TimerForm : Form
                 {
                     Log.Error(ex);
                     DontRedraw = true;
-                    MessageBox.Show(this, "The layout file couldn't be downloaded.", "Error", MessageBoxButtons.OK, MessageBoxIcon.Error);
+                    MessageBox.Show(this, T("The layout file couldn't be downloaded."), T("Error"), MessageBoxButtons.OK, MessageBoxIcon.Error);
                     DontRedraw = false;
                 }
             }
@@ -1436,6 +1549,9 @@ public partial class TimerForm : Form
         // Set MousePassThrough after setting Opacity, because setting Opacity can reset the Form's WS_EX_LAYERED flag.
         MousePassThrough = Layout.Settings.MousePassThroughWhileRunning && Model.CurrentState.CurrentPhase == TimerPhase.Running && !IsForegroundWindow;
 
+        AllowResizing = Layout.Settings.AllowResizing;
+        AllowMoving = Layout.Settings.AllowMoving;
+
         if (Layout.Settings.AntiAliasing)
         {
             g.TextRenderingHint = TextRenderingHint.AntiAlias;
@@ -1603,7 +1719,7 @@ public partial class TimerForm : Form
 
     private void TimerForm_MouseMove(object sender, MouseEventArgs e)
     {
-        if (MouseIsDown)
+        if (AllowMoving && MouseIsDown)
         {
             int x = Location.X - MousePoint.X + e.Location.X;
             int y = Location.Y - MousePoint.Y + e.Location.Y;
@@ -1642,7 +1758,7 @@ public partial class TimerForm : Form
         if (!Settings.AgreedToSRLRules)
         {
             Process.Start(SRLSettings.SRLRulesLink);
-            DialogResult result = MessageBox.Show(this, "Please read through the rules of SpeedRunsLive carefully.\r\nDo you agree to these rules?", "SpeedRunsLive Rules", MessageBoxButtons.YesNo, MessageBoxIcon.Question);
+            DialogResult result = MessageBox.Show(this, T("Please read through the rules of SpeedRunsLive carefully.\r\nDo you agree to these rules?"), T("SpeedRunsLive Rules"), MessageBoxButtons.YesNo, MessageBoxIcon.Question);
             if (result == DialogResult.Yes)
             {
                 Settings.AgreedToSRLRules = true;
@@ -1674,7 +1790,7 @@ public partial class TimerForm : Form
         const int RESIZE_HANDLE_SIZE = 10;
         bool handled = false;
 
-        if (m.Msg is (int)WM_NCHITTEST or (int)WM_MOUSEMOVE)
+        if (AllowResizing && m.Msg is (int)WM_NCHITTEST or (int)WM_MOUSEMOVE)
         {
             Size formSize = Size;
             var screenPoint = new Point(m.LParam.ToInt32());
@@ -1957,7 +2073,7 @@ public partial class TimerForm : Form
         {
             Log.Error(e);
             DontRedraw = true;
-            MessageBox.Show(this, "The selected file was not recognized as a splits file.", "Error", MessageBoxButtons.OK, MessageBoxIcon.Error);
+            MessageBox.Show(this, T("The selected file was not recognized as a splits file."), T("Error"), MessageBoxButtons.OK, MessageBoxIcon.Error);
             DontRedraw = false;
         }
 
@@ -2019,7 +2135,7 @@ public partial class TimerForm : Form
             {
                 if (!splitDialog.FileName.EndsWith(".lss"))
                 {
-                    MessageBox.Show(this, "Cannot save splits with a file type that is not .lss", "Save Failed", MessageBoxButtons.OK, MessageBoxIcon.Error);
+                    MessageBox.Show(this, T("Cannot save splits with a file type that is not .lss"), T("Save Failed"), MessageBoxButtons.OK, MessageBoxIcon.Error);
                     return false;
                 }
 
@@ -2055,7 +2171,7 @@ public partial class TimerForm : Form
             || CurrentState.CurrentPhase == TimerPhase.Paused))
         {
             DontRedraw = true;
-            result = MessageBox.Show(this, "This run did not beat your current splits. Would you like to save this run as a Personal Best?", "Save as Personal Best?", MessageBoxButtons.YesNoCancel, MessageBoxIcon.Question);
+            result = MessageBox.Show(this, T("This run did not beat your current splits. Would you like to save this run as a Personal Best?"), T("Save as Personal Best?"), MessageBoxButtons.YesNoCancel, MessageBoxIcon.Question);
             DontRedraw = false;
             if (result == DialogResult.Yes)
             {
@@ -2100,7 +2216,7 @@ public partial class TimerForm : Form
         }
         catch (Exception ex)
         {
-            MessageBox.Show(this, "Splits could not be saved!", "Save Failed", MessageBoxButtons.OK, MessageBoxIcon.Error);
+            MessageBox.Show(this, T("Splits could not be saved!"), T("Save Failed"), MessageBoxButtons.OK, MessageBoxIcon.Error);
             Log.Error(ex);
             return false;
         }
@@ -2154,7 +2270,7 @@ public partial class TimerForm : Form
         }
         catch (Exception ex)
         {
-            MessageBox.Show(this, "Layout could not be saved!", "Save Failed", MessageBoxButtons.OK, MessageBoxIcon.Error);
+            MessageBox.Show(this, T("Layout could not be saved!"), T("Save Failed"), MessageBoxButtons.OK, MessageBoxIcon.Error);
             Log.Error(ex);
             return false;
         }
@@ -2179,6 +2295,7 @@ public partial class TimerForm : Form
                 editor.AllowChangingSegments = true;
             }
 
+            UiLocalizer.Apply(editor, CurrentLanguage);
             DialogResult result = editor.ShowDialog(this);
             if (result == DialogResult.Cancel)
             {
@@ -2300,6 +2417,7 @@ public partial class TimerForm : Form
         try
         {
             TopMost = false;
+            UiLocalizer.Apply(editor, CurrentLanguage);
             editor.ShowDialog(this);
             if (editor.DialogResult == DialogResult.Cancel)
             {
@@ -2403,7 +2521,7 @@ public partial class TimerForm : Form
             {
                 if (!layoutDialog.FileName.EndsWith(".lsl"))
                 {
-                    MessageBox.Show(this, "Cannot save layout with a file type that is not .lsl", "Save Failed", MessageBoxButtons.OK, MessageBoxIcon.Error);
+                    MessageBox.Show(this, T("Cannot save layout with a file type that is not .lsl"), T("Save Failed"), MessageBoxButtons.OK, MessageBoxIcon.Error);
                     return false;
                 }
 
@@ -2425,6 +2543,7 @@ public partial class TimerForm : Form
         try
         {
             TopMost = false;
+            UiLocalizer.Apply(aboutBox, CurrentLanguage);
             aboutBox.ShowDialog(this);
         }
         finally
@@ -2473,7 +2592,7 @@ public partial class TimerForm : Form
             {
                 Log.Error(e);
                 DontRedraw = true;
-                MessageBox.Show(this, "The selected file was not recognized as a layout file. (" + e.Message + ")", "Error", MessageBoxButtons.OK, MessageBoxIcon.Error);
+                MessageBox.Show(this, T("The selected file was not recognized as a layout file. (") + e.Message + ")", T("Error"), MessageBoxButtons.OK, MessageBoxIcon.Error);
                 DontRedraw = false;
             }
 
@@ -2640,7 +2759,7 @@ public partial class TimerForm : Form
             try
             {
                 DontRedraw = true;
-                DialogResult result = MessageBox.Show(this, "Your splits have been updated but not yet saved.\nDo you want to save your splits now?", "Save Splits?", MessageBoxButtons.YesNoCancel, MessageBoxIcon.Question);
+                DialogResult result = MessageBox.Show(this, T("Your splits have been updated but not yet saved.\nDo you want to save your splits now?"), T("Save Splits?"), MessageBoxButtons.YesNoCancel, MessageBoxIcon.Question);
                 if (result == DialogResult.Yes)
                 {
                     safeToContinue = SaveSplits(false);
@@ -2673,7 +2792,7 @@ public partial class TimerForm : Form
             {
                 DontRedraw = true;
                 MessageBoxButtons buttons = canCancel ? MessageBoxButtons.YesNoCancel : MessageBoxButtons.YesNo;
-                DialogResult result = MessageBox.Show(this, "Your layout has been updated but not yet saved.\nDo you want to save your layout now?", "Save Layout?", buttons, MessageBoxIcon.Question);
+                DialogResult result = MessageBox.Show(this, T("Your layout has been updated but not yet saved.\nDo you want to save your layout now?"), T("Save Layout?"), buttons, MessageBoxIcon.Question);
                 if (result == DialogResult.Yes)
                 {
                     safeToContinue = SaveLayout();
@@ -2708,7 +2827,19 @@ public partial class TimerForm : Form
 
         Settings.LastComparison = CurrentState.CurrentComparison;
         AddCurrentSplitsToLRU(CurrentState.CurrentTimingMethod, CurrentState.CurrentHotkeyProfile);
+        SaveSettingsToDisk();
 
+        foreach (UI.Components.IComponent component in Layout.Components)
+        {
+            component.Dispose();
+        }
+
+        DeactivateAutoSplitter();
+        Server.StopAll();
+    }
+
+    private bool SaveSettingsToDisk()
+    {
         try
         {
             string settingsFullPath = Path.Combine(SettingsPath, SETTINGS_FILE);
@@ -2723,20 +2854,14 @@ public partial class TimerForm : Form
             using FileStream stream = File.Open(settingsFullPath, FileMode.Create, FileAccess.Write);
             byte[] buffer = memoryStream.GetBuffer();
             stream.Write(buffer, 0, (int)memoryStream.Length);
+            return true;
         }
         catch (Exception ex)
         {
             MessageBox.Show(this, "Settings could not be saved!", "Save Failed", MessageBoxButtons.OK, MessageBoxIcon.Error);
             Log.Error(ex);
+            return false;
         }
-
-        foreach (UI.Components.IComponent component in Layout.Components)
-        {
-            component.Dispose();
-        }
-
-        DeactivateAutoSplitter();
-        Server.StopAll();
     }
 
     private void settingsMenuItem_Click(object sender, EventArgs e)
@@ -2748,6 +2873,7 @@ public partial class TimerForm : Form
             TopMost = false;
             var oldSettings = (ISettings)Settings.Clone();
             Settings.UnregisterAllHotkeys(Hook);
+            UiLocalizer.Apply(editor, CurrentLanguage);
             DialogResult result = editor.ShowDialog(this);
             if (result == DialogResult.Cancel)
             {
@@ -2789,6 +2915,7 @@ public partial class TimerForm : Form
             {
                 using FileStream stream = File.OpenRead(settingsFullPath);
                 Settings = new XMLSettingsFactory(stream).Create();
+                LanguageResolver.SetCurrentLanguageSetting(Settings.UILanguage);
                 return;
             }
         }
@@ -2798,6 +2925,7 @@ public partial class TimerForm : Form
         }
 
         Settings = new StandardSettingsFactory().Create();
+        LanguageResolver.SetCurrentLanguageSetting(Settings.UILanguage);
     }
 
     private void SetDPIAwareness()
@@ -2870,6 +2998,7 @@ public partial class TimerForm : Form
             TopMost = false;
             IsInDialogMode = true;
             Settings.UnregisterAllHotkeys(Hook);
+            UiLocalizer.Apply(dialog, CurrentLanguage);
             dialog.ShowDialog(this);
             Settings.RegisterHotkeys(Hook, CurrentState.CurrentHotkeyProfile);
         }
@@ -2900,7 +3029,7 @@ public partial class TimerForm : Form
         if (warnUser)
         {
             DontRedraw = true;
-            DialogResult result = MessageBox.Show(this, "You have beaten some of your best times.\r\nDo you want to update them?", "Update Times?", MessageBoxButtons.YesNoCancel, MessageBoxIcon.Question);
+            DialogResult result = MessageBox.Show(this, T("You have beaten some of your best times.\r\nDo you want to update them?"), T("Update Times?"), MessageBoxButtons.YesNoCancel, MessageBoxIcon.Question);
             DontRedraw = false;
             return result;
         }
@@ -3403,6 +3532,8 @@ public partial class TimerForm : Form
     {
         RebuildControlMenu();
         RebuildComparisonsMenu();
+        UpdateLanguageMenuChecks();
+        UiLocalizer.Apply(this, CurrentLanguage);
     }
 
     private void TimerForm_ResizeBegin(object sender, EventArgs e)
