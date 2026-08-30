@@ -90,7 +90,7 @@
             this.labelProductName.Name = "labelProductName";
             this.labelProductName.Size = new System.Drawing.Size(267, 17);
             this.labelProductName.TabIndex = 19;
-            this.labelProductName.Text = "LiveSplit";
+            this.labelProductName.Text = "LiveSplit (Oekn5w Fork)";
             this.labelProductName.TextAlign = System.Drawing.ContentAlignment.MiddleLeft;
             // 
             // textBoxDescription

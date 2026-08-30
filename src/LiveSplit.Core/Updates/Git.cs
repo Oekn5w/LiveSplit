@@ -34,7 +34,7 @@ public static class Git
         : GitInfo.branch.Replace("\r", "").Replace("\n", "")
     ;
     public static readonly Uri RevisionUri = LastTag != null && Revision != null
-        ? new Uri("https://github.com/LiveSplit/LiveSplit/tree/" + (CommitsSinceLastTag > 0 ? Revision : LastTag))
+        ? new Uri("https://github.com/Oekn5w/LiveSplit/tree/" + (CommitsSinceLastTag > 0 ? Revision : LastTag))
         : null
     ;
 }

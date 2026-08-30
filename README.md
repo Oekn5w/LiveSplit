@@ -32,6 +32,23 @@ LiveSplit is a timer program for speedrunners that is both easy to use and full 
 
 **Component Development:** Anyone can develop their own components that can easily be shared and used with LiveSplit. Additional downloadable components can be found in the [Components Section](https://livesplit.org/components/).
 
+### Additional features in the Oekn5w Fork
+
+**Priority:** Livesplit is run with the self-assigned process priority `Above Normal`
+
+**Arguments:** Additional `-c` arguments for the configuration directory
+
+**Run Hibernation:** Adds the ability to hibernate runs when paused and resume them in a new Livesplit session (i.e. the next day). Make sure multiple sessions are allowed as per the submission guidelines for the game if you plan to submit such a run. Do not expect autosplitters to continue to work on resumed runs. Load removal probably continues to work but it's very dependant on how the autosplitter is written. Saved runs are saved in a separate file (.lsr) and the game and splits are checked on loading that file. Based on [this PR](https://github.com/LiveSplit/LiveSplit/pull/1774).
+
+**Livesplit Server:**
+- pause (toggles the pause status, for e.g. the StreamDeck plugin)
+- pauseonly (original pause implementation)
+- getvisualsplitindex (get splitindex, when in reset state the index of the rendered index of the Subsplit component is returned, for SplitGuides)
+- subtimerphase (added ability to receive Server messages on timerphase change), space separated arguments:
+  - subscribe
+  - unsubscribe
+  - status
+
 ## Contributing
 
 We need your help!
