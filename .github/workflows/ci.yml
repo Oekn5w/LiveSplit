@@ -1,10 +1,9 @@
 name: CI
 
 on:
-  pull_request:
   push:
     branches:
-      - 'master'
+      - 'own-master'
     tags:
       - '*'
 
@@ -38,14 +37,6 @@ jobs:
           -p:DebugType=None
           .\LiveSplit.slnx
 
-      - name: Build UpdateManager.exe
-        run: >
-          dotnet build
-          -v m
-          -c UpdateManagerExe
-          -p:DebugType=None
-          .\src\UpdateManager\UpdateManager.csproj
-
       - name: Run tests
         run: >
           dotnet test
@@ -59,24 +50,3 @@ jobs:
         with:
           name: LiveSplit_Build
           path: .\artifacts\build\release
-
-      - name: Upload UpdateManager.exe as an artifact
-        uses: actions/upload-artifact@v7
-        with:
-          name: UpdateManagerExe
-          path: .\artifacts\build\updatemanagerexe
-
-      - name: Upload build to LiveSplit.github.io
-        if: github.repository == 'LiveSplit/LiveSplit' && github.ref == 'refs/heads/master'
-        run: |
-          7z a LiveSplitDevBuild.zip .\artifacts\build\release\*
-          git config --global user.email "action@github.com"
-          git config --global user.name "GitHub Action"
-          git clone -q --branch master --single-branch "https://github.com/LiveSplit/LiveSplit.github.io.git"
-          cd LiveSplit.github.io
-          git checkout -q --orphan artifacts
-          git reset
-          mv ../LiveSplitDevBuild.zip . -force
-          git add LiveSplitDevBuild.zip
-          git commit -m "Add Development Build"
-          git push -q --force https://action:${{ secrets.DEV_BUILD_UPLOAD }}@github.com/LiveSplit/LiveSplit.github.io.git
