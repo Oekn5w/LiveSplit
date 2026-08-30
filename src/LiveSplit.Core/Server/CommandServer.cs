@@ -456,7 +456,7 @@ public class CommandServer
                         {
                             try
                             {
-                                splitindex = ((IComponentAdditional)component).GetRenderedSplitIndex(State);
+                                splitindex = ((UI.Components.IComponentAdditional)component).GetRenderedSplitIndex(State);
                                 break;
                             }
                             catch { }
