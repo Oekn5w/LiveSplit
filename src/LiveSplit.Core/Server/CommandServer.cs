@@ -8,10 +8,12 @@ using System.Net.Sockets;
 using System.Text.Json;
 using System.Text.RegularExpressions;
 using System.Windows.Forms;
+using System.Windows.Media.Media3D;
 
 using LiveSplit.Model;
 using LiveSplit.Options;
 using LiveSplit.TimeFormatters;
+using LiveSplit.UI.Components;
 
 using WebSocketSharp.Server;
 
@@ -368,6 +370,28 @@ public class CommandServer
             case "getsplitindex":
             {
                 int splitindex = State.CurrentSplitIndex;
+                response = splitindex.ToString();
+                break;
+            }
+            case "getvisualsplitindex":
+            {
+                int splitindex = State.CurrentSplitIndex;
+                if (State.CurrentPhase is TimerPhase.NotRunning or TimerPhase.Paused)
+                {
+                    foreach (UI.Components.IComponent component in State.Layout.Components)
+                    {
+                        if (component.ComponentName == "Subsplits")
+                        {
+                            try
+                            {
+                                splitindex = ((IComponentAdditional)component).GetRenderedSplitIndex(State);
+                                break;
+                            }
+                            catch { }
+                        }
+                    }
+                }
+
                 response = splitindex.ToString();
                 break;
             }

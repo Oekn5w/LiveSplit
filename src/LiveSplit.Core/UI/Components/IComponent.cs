@@ -103,4 +103,10 @@ public interface IComponent : IDisposable
     // </summary>
     // <returns> Returns a Hash Code of the component's settings.</returns>
     // int GetSettingsHashCode()
+
+}
+
+public interface IComponentAdditional : IComponent
+{
+    int GetRenderedSplitIndex(LiveSplitState state);
 }
