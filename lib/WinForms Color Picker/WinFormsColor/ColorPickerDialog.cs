@@ -54,7 +54,6 @@ public partial class ColorPickerDialog : Form
         }
     }
 
-    private bool alphaEnabled = true;
     private InternalColor oldColor = new(Color.Red);
     private InternalColor _selColor = new(Color.Red);
     private InternalColor selColor
@@ -67,21 +66,21 @@ public partial class ColorPickerDialog : Form
             _selColor = value;
         }
     }
-    private PrimaryAttrib primAttrib = PrimaryAttrib.Hue;
+
     private bool suspendTextEvents = false;
 
     public event EventHandler SelectedColorChanged;
 
     public bool AlphaEnabled
     {
-        get => alphaEnabled;
+        get;
         set
         {
-            alphaEnabled = value;
-            alphaSlider.Enabled = alphaEnabled;
-            numAlpha.Enabled = alphaEnabled;
+            field = value;
+            alphaSlider.Enabled = field;
+            numAlpha.Enabled = field;
         }
-    }
+    } = true;
     public Color OldColor
     {
         get => oldColor.ToColor();
@@ -102,13 +101,13 @@ public partial class ColorPickerDialog : Form
     }
     public PrimaryAttrib PrimaryAttribute
     {
-        get => primAttrib;
+        get;
         set
         {
-            primAttrib = value;
+            field = value;
             UpdateColorControls();
         }
-    }
+    } = PrimaryAttrib.Hue;
 
     public ColorPickerDialog()
     {
@@ -131,7 +130,7 @@ public partial class ColorPickerDialog : Form
     }
     private void UpdatePrimaryAttributeRadioBox()
     {
-        switch (primAttrib)
+        switch (PrimaryAttribute)
         {
             default:
             case PrimaryAttrib.Hue:
@@ -179,13 +178,13 @@ public partial class ColorPickerDialog : Form
     }
     private void UpdateColorShowBox()
     {
-        colorShowBox.UpperColor = alphaEnabled ? oldColor.ToColor() : Color.FromArgb(255, oldColor.ToColor());
-        colorShowBox.LowerColor = alphaEnabled ? selColor.ToColor() : Color.FromArgb(255, selColor.ToColor());
+        colorShowBox.UpperColor = AlphaEnabled ? oldColor.ToColor() : Color.FromArgb(255, oldColor.ToColor());
+        colorShowBox.LowerColor = AlphaEnabled ? selColor.ToColor() : Color.FromArgb(255, selColor.ToColor());
     }
     private void UpdateColorPanelGradient()
     {
         Color tmp;
-        switch (primAttrib)
+        switch (PrimaryAttribute)
         {
             default:
             case PrimaryAttrib.Hue:
@@ -233,7 +232,7 @@ public partial class ColorPickerDialog : Form
     private void UpdateColorPanelValue()
     {
         Color tmp;
-        switch (primAttrib)
+        switch (PrimaryAttribute)
         {
             default:
             case PrimaryAttrib.Hue:
@@ -274,7 +273,7 @@ public partial class ColorPickerDialog : Form
     private void UpdateColorSliderGradient()
     {
         Color tmp;
-        switch (primAttrib)
+        switch (PrimaryAttribute)
         {
             default:
             case PrimaryAttrib.Hue:
@@ -313,7 +312,7 @@ public partial class ColorPickerDialog : Form
     private void UpdateColorSliderValue()
     {
         Color tmp;
-        switch (primAttrib)
+        switch (PrimaryAttribute)
         {
             default:
             case PrimaryAttrib.Hue:
@@ -351,7 +350,7 @@ public partial class ColorPickerDialog : Form
     private void UpdateSelectedColorFromSliderValue()
     {
         Color tmp;
-        switch (primAttrib)
+        switch (PrimaryAttribute)
         {
             default:
             case PrimaryAttrib.Hue:
@@ -392,7 +391,7 @@ public partial class ColorPickerDialog : Form
     private void UpdateSelectedColorFromPanelValue()
     {
         Color tmp;
-        switch (primAttrib)
+        switch (PrimaryAttribute)
         {
             default:
             case PrimaryAttrib.Hue:
@@ -615,9 +614,25 @@ public partial class ColorPickerDialog : Form
             tmp.B));
         UpdateColorControls();
     }
+
+    private void numericalUpDown_Enter(object sender, EventArgs e)
+    {
+        if (sender is not NumericUpDown num)
+        {
+            return;
+        }
+
+        num.Select(0, num.Value.ToString().Length);
+    }
+
     private void textBoxHex_TextChanged(object sender, EventArgs e)
     {
         if (suspendTextEvents)
+        {
+            return;
+        }
+
+        if (textBoxHex.Text.Length < 8)
         {
             return;
         }
@@ -672,10 +687,11 @@ public partial class ColorPickerDialog : Form
         IntPtr hdc = GetDC(IntPtr.Zero);
         uint pixel = GetPixel(hdc, x, y);
         ReleaseDC(IntPtr.Zero, hdc);
-        var color = Color.FromArgb((int)(pixel & 0x000000FF),
-                     (int)(pixel & 0x0000FF00) >> 8,
-                     (int)(pixel & 0x00FF0000) >> 16);
-        return color;
+
+        return Color.FromArgb(
+            (int)(pixel & 0x000000FF),
+            (int)(pixel & 0x0000FF00) >> 8,
+            (int)(pixel & 0x00FF0000) >> 16);
     }
 
     private void btnPickColor_Click(object sender, EventArgs e)

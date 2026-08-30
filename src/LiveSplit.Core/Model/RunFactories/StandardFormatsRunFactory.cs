@@ -1,13 +1,11 @@
-﻿using System;
+﻿using LiveSplit.Model.Comparisons;
+using LiveSplit.Options;
+using System;
 using System.Drawing;
 using System.Globalization;
 using System.IO;
 using System.Runtime.InteropServices;
 using System.Xml;
-
-using LiveSplit.Model.Comparisons;
-using LiveSplit.Options;
-
 using static LiveSplit.UI.SettingsHelper;
 
 namespace LiveSplit.Model.RunFactories;
@@ -96,6 +94,37 @@ public class StandardFormatsRunFactory : IRunFactory
         }
     }
 
+    private static string[] GetLegacySegmentNames(LiveSplitCore.RunRef run)
+    {
+        int segmentCount = checked((int)run.Len());
+        var names = new string[segmentCount];
+        for (int i = 0; i < segmentCount; i++)
+        {
+            names[i] = run.Segment((ulong)i).Name();
+        }
+
+        ulong groupCount = run.SegmentGroupsLen();
+        for (ulong groupIndex = 0; groupIndex < groupCount; groupIndex++)
+        {
+            LiveSplitCore.SegmentGroupRef group = run.SegmentGroup(groupIndex);
+            int start = checked((int)group.Start());
+            int end = checked((int)group.End());
+
+            for (int i = start; i < end - 1; i++)
+            {
+                names[i] = $"-{names[i]}";
+            }
+
+            string groupName = group.Name();
+            if (!string.IsNullOrEmpty(groupName))
+            {
+                names[end - 1] = $"{{{groupName}}} {names[end - 1]}";
+            }
+        }
+
+        return names;
+    }
+
     public IRun Create(IComparisonGeneratorsFactory factory)
     {
         LiveSplitCore.ParseRunResult result = null;
@@ -150,18 +179,9 @@ public class StandardFormatsRunFactory : IRunFactory
         run.AttemptCount = (int)lscRun.AttemptCount();
 
         LiveSplitCore.LinkedLayout linkedLayout = lscRun.LinkedLayout();
-        if (linkedLayout == null)
-        {
-            run.LayoutPath = null;
-        }
-        else if (linkedLayout.IsDefault())
-        {
-            run.LayoutPath = "?default";
-        }
-        else
-        {
-            run.LayoutPath = linkedLayout.Path();
-        }
+        run.LayoutPath = linkedLayout != null
+            ? linkedLayout.IsDefault() ? "?default" : linkedLayout.Path()
+            : null;
 
         ulong attemptsCount = lscRun.AttemptHistoryLen();
         for (ulong i = 0ul; i < attemptsCount; ++i)
@@ -186,11 +206,12 @@ public class StandardFormatsRunFactory : IRunFactory
             }
         }
 
-        ulong segmentCount = lscRun.Len();
+        string[] segmentNames = GetLegacySegmentNames(lscRun);
+        ulong segmentCount = (ulong)segmentNames.Length;
         for (ulong i = 0ul; i < segmentCount; ++i)
         {
             LiveSplitCore.SegmentRef segment = lscRun.Segment(i);
-            var split = new Segment(segment.Name())
+            var split = new Segment(segmentNames[i])
             {
                 Icon = ParseImage(segment.IconPtr(), segment.IconLen()),
                 BestSegmentTime = ParseTime(segment.BestSegmentTime()),

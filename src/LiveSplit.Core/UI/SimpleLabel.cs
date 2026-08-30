@@ -1,13 +1,11 @@
-﻿using System;
+﻿using LiveSplit.Options;
+using System;
 using System.Collections.Generic;
 using System.Drawing;
 using System.Drawing.Drawing2D;
 using System.Drawing.Text;
 using System.Linq;
 using System.Windows.Forms;
-
-using LiveSplit.Options;
-
 using static System.Windows.Forms.TextRenderer;
 
 namespace LiveSplit.UI;
@@ -107,7 +105,7 @@ public class SimpleLabel
                 LineAlignment = VerticalAlignment
             };
 
-            int measurement = MeasureText(g, "0", Font, new Size((int)(Width + 0.5f), (int)(Height + 0.5f)), TextFormatFlags.NoPadding).Width;
+            int measurement = MeasureCharacterActualWidth("0", g);
             float offset = Width;
             int charIndex = 0;
             SetActualWidth(g);
@@ -124,14 +122,9 @@ public class SimpleLabel
                 float curOffset = 0f;
                 char curChar = cutOffText[charIndex];
 
-                if (char.IsDigit(curChar))
-                {
-                    curOffset = measurement;
-                }
-                else
-                {
-                    curOffset = MeasureText(g, curChar.ToString(), Font, new Size((int)(Width + 0.5f), (int)(Height + 0.5f)), TextFormatFlags.NoPadding).Width;
-                }
+                curOffset = char.IsDigit(curChar)
+                    ? measurement
+                    : MeasureCharacterActualWidth(curChar.ToString(), g);
 
                 DrawText(curChar.ToString(), g, X + offset - (curOffset / 2f), Y, curOffset * 2f, Height, monoFormat);
 
@@ -199,14 +192,7 @@ public class SimpleLabel
         Format.Alignment = HorizontalAlignment;
         Format.LineAlignment = VerticalAlignment;
 
-        if (!IsMonospaced)
-        {
-            ActualWidth = g.MeasureString(Text, Font, 9999, Format).Width;
-        }
-        else
-        {
-            ActualWidth = MeasureActualWidth(Text, g);
-        }
+        ActualWidth = !IsMonospaced ? g.MeasureString(Text, Font, 9999, Format).Width : MeasureActualWidth(Text, g);
     }
 
     public string CalculateAlternateText(Graphics g, float width)
@@ -232,7 +218,7 @@ public class SimpleLabel
     private float MeasureActualWidth(string text, Graphics g)
     {
         int charIndex = 0;
-        int measurement = MeasureText(g, "0", Font, new Size((int)(Width + 0.5f), (int)(Height + 0.5f)), TextFormatFlags.NoPadding).Width;
+        int measurement = MeasureCharacterActualWidth("0", g);
         int offset = 0;
 
         while (charIndex < text.Length)
@@ -245,13 +231,27 @@ public class SimpleLabel
             }
             else
             {
-                offset += MeasureText(g, curChar.ToString(), Font, new Size((int)(Width + 0.5f), (int)(Height + 0.5f)), TextFormatFlags.NoPadding).Width;
+                offset += MeasureCharacterActualWidth(curChar.ToString(), g);
             }
 
             charIndex++;
         }
 
         return offset;
+    }
+    
+    // Intended to measure the width of a single character, taking into account DPI scaling
+    // For longer strings, MeasureActualWidth should be used instead to keep digit spacing consistent
+    private int MeasureCharacterActualWidth(string text, Graphics g)
+    {
+        int width = MeasureText(g, text, Font, new Size((int)(Width + 0.5f), (int)(Height + 0.5f)), TextFormatFlags.NoPadding).Width;
+        
+		if (Font.Unit != GraphicsUnit.Point)
+        {
+            width = (int)((width * 96f / g.DpiY) + 0.5f);
+        }
+
+        return width;
     }
 
     private string CutOff(Graphics g)
@@ -264,7 +264,7 @@ public class SimpleLabel
         string cutOffText = Text;
         while (ActualWidth >= Width && !string.IsNullOrEmpty(cutOffText))
         {
-            cutOffText = cutOffText.Remove(cutOffText.Length - 1, 1);
+            cutOffText = cutOffText[..^1];
             ActualWidth = MeasureActualWidth(cutOffText + "...", g);
         }
 

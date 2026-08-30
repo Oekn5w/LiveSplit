@@ -9,7 +9,6 @@ namespace Fetze.WinFormsColor;
 public class ColorPanel : UserControl
 {
     private Bitmap srcImage = null;
-    private int pickerSize = 8;
     private PointF pickerPos = new(0.5f, 0.5f);
     private Color clrTopLeft = Color.Transparent;
     private Color clrTopRight = Color.Transparent;
@@ -17,6 +16,8 @@ public class ColorPanel : UserControl
     private Color clrBottomRight = Color.Transparent;
     private readonly Timer pickerDragTimer = null;
     private bool designSerializeColor = false;
+
+    private readonly float keyIncrement = 0.01f;
 
     public event EventHandler ValueChanged = null;
     public event EventHandler PercentualValueChanged = null;
@@ -35,13 +36,13 @@ public class ColorPanel : UserControl
     [DefaultValue(8)]
     public int PickerSize
     {
-        get => pickerSize;
+        get;
         set
         {
-            pickerSize = value;
+            field = value;
             Invalidate();
         }
-    }
+    } = 8;
     [DefaultValue(0.5f)]
     public PointF ValuePercentual
     {
@@ -339,18 +340,18 @@ public class ColorPanel : UserControl
         if (Enabled)
         {
             e.Graphics.DrawEllipse(innerPickerPen,
-                pickerVisualPos.X - (pickerSize / 2),
-                pickerVisualPos.Y - (pickerSize / 2),
-                pickerSize,
-                pickerSize);
+                pickerVisualPos.X - (PickerSize / 2),
+                pickerVisualPos.Y - (PickerSize / 2),
+                PickerSize,
+                PickerSize);
         }
         else
         {
             e.Graphics.DrawRectangle(innerPickerPen,
-                pickerVisualPos.X - (pickerSize / 4),
-                pickerVisualPos.Y - (pickerSize / 4),
-                pickerSize / 2,
-                pickerSize / 2);
+                pickerVisualPos.X - (PickerSize / 4),
+                pickerVisualPos.Y - (PickerSize / 4),
+                PickerSize / 2,
+                PickerSize / 2);
         }
 
         if (!Enabled)
@@ -360,6 +361,11 @@ public class ColorPanel : UserControl
 
         e.Graphics.DrawRectangle(SystemPens.ControlDark, colorBoxOuter);
         e.Graphics.DrawRectangle(SystemPens.ControlLightLight, colorBoxInner);
+
+        if (Focused)
+        {
+            ControlPaint.DrawFocusRectangle(e.Graphics, colorBoxOuter);
+        }
     }
     protected override void OnMouseDown(MouseEventArgs e)
     {
@@ -398,6 +404,42 @@ public class ColorPanel : UserControl
     {
         base.OnGotFocus(e);
         Invalidate();
+    }
+    protected override void OnKeyDown(KeyEventArgs e)
+    {
+        switch (e.KeyCode)
+        {
+            case Keys.Up:
+                ValuePercentual = new(ValuePercentual.X, ValuePercentual.Y + keyIncrement);
+                break;
+            case Keys.Down:
+                ValuePercentual = new(ValuePercentual.X, ValuePercentual.Y - keyIncrement);
+                break;
+            case Keys.Left:
+                ValuePercentual = new(ValuePercentual.X - keyIncrement, ValuePercentual.Y);
+                break;
+            case Keys.Right:
+                ValuePercentual = new(ValuePercentual.X + keyIncrement, ValuePercentual.Y);
+                break;
+            default:
+                base.OnKeyDown(e);
+                break;
+        }
+    }
+    protected override void OnPreviewKeyDown(PreviewKeyDownEventArgs e)
+    {
+        switch (e.KeyCode)
+        {
+            case Keys.Up:
+            case Keys.Down:
+            case Keys.Left:
+            case Keys.Right:
+                e.IsInputKey = true;
+                break;
+            default:
+                base.OnPreviewKeyDown(e);
+                break;
+        }
     }
 
     private void ResetTopLeftColor()

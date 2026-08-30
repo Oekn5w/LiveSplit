@@ -1,7 +1,6 @@
-﻿using System;
+﻿using LiveSplit.Model.Input;
+using System;
 using System.Collections.Generic;
-
-using LiveSplit.Model.Input;
 
 namespace LiveSplit.Model;
 

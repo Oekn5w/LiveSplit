@@ -1,9 +1,7 @@
-﻿using System;
+﻿using LiveSplit.Model.Input;
+using System;
 using System.Collections.Generic;
 using System.Linq;
-using System.Collections.Generic;
-
-using LiveSplit.Model.Input;
 
 namespace LiveSplit.Model;
 
@@ -11,15 +9,13 @@ public class TimerModel : ITimerModel
 {
     public LiveSplitState CurrentState
     {
-        get => _CurrentState;
+        get;
         set
         {
-            _CurrentState = value;
+            field = value;
             value?.RegisterTimerModel(this);
         }
     }
-
-    private LiveSplitState _CurrentState;
 
     public event EventHandler OnSplit;
     public event EventHandler OnUndoSplit;
@@ -214,15 +210,21 @@ public class TimerModel : ITimerModel
                 throw new MismatchedSplitsException(i, segmentList[i].Item1, CurrentState.Run[i].Name);
             }
 
+            Time splitTime = segmentList[i].Item2;
+
             if (segmentList[i].Item2.RealTime != null)
             {
                 collectedSplitIndex = i + 1;
+                if (segmentList[i].Item2.GameTime == null)
+                {
+                    splitTime.GameTime = segmentList[i].Item2.RealTime;
+                }
             }
 
-            CurrentState.Run[i].SplitTime = segmentList[i].Item2;
+            CurrentState.Run[i].SplitTime = splitTime;
         }
 
-        if(currentSplit < 0)
+        if (currentSplit < 0)
         {
             CurrentState.CurrentSplitIndex = collectedSplitIndex;
         }
@@ -272,7 +274,7 @@ public class TimerModel : ITimerModel
         TimeSpan pauseTime = CurrentState.PauseTime ?? TimeSpan.Zero;
         if (CurrentState.CurrentPhase == TimerPhase.Ended)
         {
-            CurrentState.Run.Last().SplitTime += new Time(pauseTime, pauseTime);
+            CurrentState.Run[^1].SplitTime += new Time(pauseTime, pauseTime);
         }
 
         CurrentState.AdjustedStartTime = CurrentState.StartTimeWithOffset;
@@ -357,7 +359,8 @@ public class TimerModel : ITimerModel
     private void UpdatePBSplits()
     {
         TimingMethod curMethod = CurrentState.CurrentTimingMethod;
-        if ((CurrentState.Run.Last().SplitTime[curMethod] != null && CurrentState.Run.Last().PersonalBestSplitTime[curMethod] == null) || CurrentState.Run.Last().SplitTime[curMethod] < CurrentState.Run.Last().PersonalBestSplitTime[curMethod])
+        if ((CurrentState.Run[^1].SplitTime[curMethod] != null && CurrentState.Run[^1].PersonalBestSplitTime[curMethod] == null)
+            || CurrentState.Run[^1].SplitTime[curMethod] < CurrentState.Run[^1].PersonalBestSplitTime[curMethod])
         {
             SetRunAsPB();
         }
@@ -374,7 +377,7 @@ public class TimerModel : ITimerModel
                 RealTime = split.SplitTime.RealTime - splitTimeRTA,
                 GameTime = split.SplitTime.GameTime - splitTimeGameTime
             };
-            split.SegmentHistory.Add(CurrentState.Run.AttemptHistory.Last().Index, newTime);
+            split.SegmentHistory.Add(CurrentState.Run.AttemptHistory[^1].Index, newTime);
             if (split.SplitTime.RealTime.HasValue)
             {
                 splitTimeRTA = split.SplitTime.RealTime;

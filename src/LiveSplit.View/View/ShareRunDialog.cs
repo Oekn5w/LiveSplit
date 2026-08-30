@@ -1,13 +1,12 @@
-﻿using System;
-using System.Drawing;
-using System.Linq;
-using System.Windows.Forms;
-
-using LiveSplit.Localization;
+﻿using LiveSplit.Localization;
 using LiveSplit.Model;
 using LiveSplit.Options;
 using LiveSplit.TimeFormatters;
 using LiveSplit.Web.Share;
+using System;
+using System.Drawing;
+using System.Linq;
+using System.Windows.Forms;
 
 namespace LiveSplit.View;
 
@@ -52,6 +51,7 @@ public partial class ShareRunDialog : Form
     private void SubmitDialog_Load(object sender, EventArgs e)
     {
         cbxPlatform.Items.Add("X (Twitter)");
+        cbxPlatform.Items.Add("Bluesky");
 
         if (State.CurrentPhase is TimerPhase.NotRunning or TimerPhase.Ended)
         {
@@ -80,6 +80,7 @@ public partial class ShareRunDialog : Form
         switch (cbxPlatform.SelectedItem.ToString())
         {
             case "X (Twitter)": CurrentPlatform = Twitter.Instance; break;
+            case "Bluesky": CurrentPlatform = Bluesky.Instance; break;
             case "Twitch": CurrentPlatform = Twitch.Instance; break;
             case "Screenshot": CurrentPlatform = Screenshot.Instance; break;
             case "Imgur": CurrentPlatform = Imgur.Instance; break;
@@ -92,7 +93,7 @@ public partial class ShareRunDialog : Form
         txtNotes.Enabled = btnInsertCategory.Enabled = btnInsertDeltaTime.Enabled = btnInsertGame.Enabled
             = btnInsertPB.Enabled = btnInsertSplitName.Enabled = btnInsertSplitTime.Enabled
             = btnInsertStreamLink.Enabled = btnInsertTitle.Enabled = btnPreview.Enabled =
-            CurrentPlatform == Twitter.Instance || CurrentPlatform == Twitch.Instance || CurrentPlatform == Imgur.Instance;
+            CurrentPlatform == Twitter.Instance || CurrentPlatform == Bluesky.Instance || CurrentPlatform == Twitch.Instance || CurrentPlatform == Imgur.Instance;
 
         if (State.CurrentPhase == TimerPhase.Ended || State.CurrentPhase == TimerPhase.NotRunning
             || State.CurrentSplitIndex == 0)
@@ -100,7 +101,7 @@ public partial class ShareRunDialog : Form
             btnInsertDeltaTime.Enabled = btnInsertSplitName.Enabled = btnInsertSplitTime.Enabled = false;
         }
 
-        if (Run.Last().PersonalBestSplitTime[State.CurrentTimingMethod] == null)
+        if (Run[^1].PersonalBestSplitTime[State.CurrentTimingMethod] == null)
         {
             btnInsertPB.Enabled = false;
         }
@@ -131,7 +132,7 @@ public partial class ShareRunDialog : Form
 
         string game = Run.GameName ?? "";
         string category = Run.GetExtendedCategoryName();
-        string pb = timeFormatter.Format(Run.Last().PersonalBestSplitTime[State.CurrentTimingMethod]) ?? "";
+        string pb = timeFormatter.Format(Run[^1].PersonalBestSplitTime[State.CurrentTimingMethod]) ?? "";
         string title = Run.GetExtendedName();
 
         string splitName = "";
@@ -177,12 +178,12 @@ public partial class ShareRunDialog : Form
 
     private void RefreshNotes()
     {
-        if (CurrentPlatform == Twitter.Instance)
+        if (CurrentPlatform == Twitter.Instance || CurrentPlatform == Bluesky.Instance)
         {
             ShareSettings.Default.Reload();
             if (State.CurrentPhase is TimerPhase.NotRunning or TimerPhase.Ended)
             {
-                txtNotes.Text = ShareSettings.Default.TwitterFormat;
+                txtNotes.Text = CurrentPlatform == Twitter.Instance ? ShareSettings.Default.TwitterFormat : ShareSettings.Default.BlueskyFormat;
                 if (string.IsNullOrEmpty(txtNotes.Text))
                 {
                     txtNotes.Text = "I got a $pb in $title.";
@@ -190,7 +191,7 @@ public partial class ShareRunDialog : Form
             }
             else
             {
-                txtNotes.Text = ShareSettings.Default.TwitterFormatRunning;
+                txtNotes.Text = CurrentPlatform == Twitter.Instance ? ShareSettings.Default.TwitterFormatRunning : ShareSettings.Default.BlueskyFormatRunning;
                 if (string.IsNullOrEmpty(txtNotes.Text))
                 {
                     txtNotes.Text = "I'm $delta in $title.";
@@ -214,15 +215,29 @@ public partial class ShareRunDialog : Form
 
     private void SaveNotesFormat()
     {
-        if (CurrentPlatform == Twitter.Instance)
+        if (CurrentPlatform == Twitter.Instance || CurrentPlatform == Bluesky.Instance)
         {
             if (State.CurrentPhase is TimerPhase.NotRunning or TimerPhase.Ended)
             {
-                ShareSettings.Default.TwitterFormat = txtNotes.Text;
+                if (CurrentPlatform == Twitter.Instance)
+                {
+                    ShareSettings.Default.TwitterFormat = txtNotes.Text;
+                }
+                else
+                {
+                    ShareSettings.Default.BlueskyFormat = txtNotes.Text;
+                }
             }
             else
             {
-                ShareSettings.Default.TwitterFormatRunning = txtNotes.Text;
+                if (CurrentPlatform == Twitter.Instance)
+                {
+                    ShareSettings.Default.TwitterFormatRunning = txtNotes.Text;
+                }
+                else
+                {
+                    ShareSettings.Default.BlueskyFormatRunning = txtNotes.Text;
+                }
             }
 
             ShareSettings.Default.Save();
@@ -246,7 +261,7 @@ public partial class ShareRunDialog : Form
 
             if (!CurrentPlatform.VerifyLogin())
             {
-            MessageBox.Show(T("Your login information seems to be incorrect."), T("Error"), MessageBoxButtons.OK, MessageBoxIcon.Error);
+                MessageBox.Show(T("Your login information seems to be incorrect."), T("Error"), MessageBoxButtons.OK, MessageBoxIcon.Error);
                 return;
             }
 
@@ -258,7 +273,7 @@ public partial class ShareRunDialog : Form
 
             if (runSubmitted)
             {
-            MessageBox.Show(string.Format(T("Your run was successfully shared to {0}."), CurrentPlatform.PlatformName), T("Run Shared"), MessageBoxButtons.OK, MessageBoxIcon.Information);
+                MessageBox.Show(string.Format(T("Your run was successfully shared to {0}."), CurrentPlatform.PlatformName), T("Run Shared"), MessageBoxButtons.OK, MessageBoxIcon.Information);
                 return;
             }
         }
@@ -271,7 +286,7 @@ public partial class ShareRunDialog : Form
             Cursor = Cursors.Default;
         }
 
-            MessageBox.Show(T("The run could not be shared."), T("Error"), MessageBoxButtons.OK, MessageBoxIcon.Error);
+        MessageBox.Show(T("The run could not be shared."), T("Error"), MessageBoxButtons.OK, MessageBoxIcon.Error);
     }
 
     private void btnClose_Click(object sender, EventArgs e)
@@ -282,7 +297,7 @@ public partial class ShareRunDialog : Form
 
     private void btnPreview_Click(object sender, EventArgs e)
     {
-            MessageBox.Show(FormatNotes(txtNotes.Text), T("Preview"), MessageBoxButtons.OK, MessageBoxIcon.Information);
+        MessageBox.Show(FormatNotes(txtNotes.Text), T("Preview"), MessageBoxButtons.OK, MessageBoxIcon.Information);
     }
 
     private void Insert(string insertText)

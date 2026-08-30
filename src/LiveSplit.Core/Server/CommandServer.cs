@@ -1,20 +1,21 @@
-﻿using System;
+﻿using LiveSplit.Model;
+using LiveSplit.Options;
+using LiveSplit.TimeFormatters;
+using LiveSplit.Updates;
+using System;
 using System.Collections.Generic;
+using System.Drawing;
+using System.Drawing.Imaging;
 using System.Globalization;
+using System.IO;
 using System.IO.Pipes;
 using System.Linq;
 using System.Net;
 using System.Net.Sockets;
+using System.Reflection;
 using System.Text.Json;
 using System.Text.RegularExpressions;
 using System.Windows.Forms;
-using System.Windows.Media.Media3D;
-
-using LiveSplit.Model;
-using LiveSplit.Options;
-using LiveSplit.TimeFormatters;
-using LiveSplit.UI.Components;
-
 using WebSocketSharp.Server;
 
 namespace LiveSplit.Server;
@@ -31,12 +32,22 @@ public class CommandServer
     protected Form Form { get; set; }
     protected TimerModel Model { get; set; }
     protected ITimeFormatter TimeFormatter { get; set; }
+    protected Action RefreshHotkeyHooks { get; set; }
+    protected Func<Image> ScreenShotFunction { get; set; }
+    protected Func<bool, bool> SaveLayout { get; set; }
+    protected Func<bool, bool, bool> SaveSplits { get; set; }
+    protected Func<string, bool, bool> OpenLayoutFromFile { get; set; }
+    protected Func<string, bool, bool> OpenRunFromFile { get; set; }
     protected NamedPipeServerStream WaitingServerPipe { get; set; }
 
     protected bool AlwaysPauseGameTime { get; set; }
     protected List<IConnection> SubscriptionsTimerPhase { get; set; }
+    private static readonly JsonSerializerOptions _serializerOptions = new()
+    {
+        PropertyNamingPolicy = JsonNamingPolicy.CamelCase
+    };
 
-    public CommandServer(LiveSplitState state)
+    public CommandServer(LiveSplitState state, Action refreshHotkeyHooks, Func<Image> screenShotFunction, Func<bool, bool> saveLayout, Func<bool, bool, bool> saveSplits, Func<string, bool, bool> openLayoutFromFile, Func<string, bool, bool> openRunFromFile)
     {
         Model = new TimerModel();
         PipeConnections = [];
@@ -46,6 +57,12 @@ public class CommandServer
 
         State = state;
         Form = state.Form;
+        RefreshHotkeyHooks = refreshHotkeyHooks;
+        ScreenShotFunction = screenShotFunction;
+        SaveLayout = saveLayout;
+        SaveSplits = saveSplits;
+        OpenLayoutFromFile = openLayoutFromFile;
+        OpenRunFromFile = openRunFromFile;
 
         Model.CurrentState = State;
         State.OnStart += State_OnStart;
@@ -268,6 +285,11 @@ public class CommandServer
 
                 break;
             }
+            case "undoallpauses":
+            {
+                Model.UndoAllPauses();
+                break;
+            }
             case "resume":
             {
                 if (State.CurrentPhase == TimerPhase.Paused)
@@ -350,6 +372,57 @@ public class CommandServer
                 State.IsGameTimePaused = true;
                 break;
             }
+            case "getgamename":
+            {
+                response = State.Run.GameName.ToString();
+                break;
+            }
+            case "getcategoryname":
+            {
+                response = State.Run.CategoryName.ToString();
+                break;
+            }
+            case "getcategoryvariables":
+            {
+                RunMetadata md = State.Run.Metadata;
+
+                //Region
+                string region = null;
+                if (md is { Game: not null, Region.Abbreviation.Length: > 0 })
+                {
+                    region = md.Region.Abbreviation;
+                }
+                else if (md is { Game: null, RegionName.Length: > 0 })
+                {
+                    region = md.RegionName;
+                }
+
+                //Platform
+                string platform = null;
+                if (md is { Game: not null, PlatformName.Length: > 0 })
+                {
+                    platform = md.PlatformName;
+                }
+
+                //Variables
+                Dictionary<string, string> variables = [];
+                IEnumerable<string> variableL = md.VariableValueNames.Keys;
+                if (md is { Game: not null, Category: not null })
+                {
+                    variableL = md.Game.FullGameVariables.Where(fgv => fgv.CategoryID == null || fgv.CategoryID == md.Category?.ID).Select(fgv => fgv.Name);
+                }
+
+                foreach (string variable in variableL)
+                {
+                    if (md.VariableValueNames.TryGetValue(variable, out string value))
+                    {
+                        variables.Add(variable, value);
+                    }
+                }
+
+                response = JsonSerializer.Serialize(new CategoryMetadata(region, platform, md.UsesEmulator, variables), _serializerOptions);
+                break;
+            }
             case "getdelta":
             {
                 string comparison = args.Length > 1 ? args[1] : State.CurrentComparison;
@@ -360,7 +433,7 @@ public class CommandServer
                 }
                 else if (State.CurrentPhase == TimerPhase.Ended)
                 {
-                    delta = State.Run.Last().SplitTime[State.CurrentTimingMethod] - State.Run.Last().Comparisons[comparison][State.CurrentTimingMethod];
+                    delta = State.Run[^1].SplitTime[State.CurrentTimingMethod] - State.Run[^1].Comparisons[comparison][State.CurrentTimingMethod];
                 }
 
                 // Defaults to "-" when delta is null, such as when State.CurrentPhase == TimerPhase.NotRunning
@@ -369,8 +442,7 @@ public class CommandServer
             }
             case "getsplitindex":
             {
-                int splitindex = State.CurrentSplitIndex;
-                response = splitindex.ToString();
+                response = State.CurrentSplitIndex.ToString();
                 break;
             }
             case "getvisualsplitindex":
@@ -395,30 +467,54 @@ public class CommandServer
                 response = splitindex.ToString();
                 break;
             }
-            case "getcurrentsplitname":
+            case "getsplitcount":
             {
-                if (State.CurrentSplit != null)
+                response = State.Run.Count.ToString();
+                break;
+            }
+            case "getsplitname":
+            {
+                int index = State.CurrentSplitIndex;
+                if (!int.TryParse(args[1], NumberStyles.Integer, CultureInfo.InvariantCulture, out index))
                 {
-                    response = State.CurrentSplit.Name;
+                    Log.Error($"[Server] Could not parse {args[1]} as a split index while gathering split name.");
+                    break;
+                }
+
+                if (index < 0)
+                {
+                    index = State.Run.Count - Math.Abs(index);
+                }
+
+                if (index >= 0 && index < State.Run.Count)
+                {
+                    response = State.Run[index].Name;
                 }
                 else
                 {
+                    Log.Warning($"[Sever] Split index {index} out of bounds for command {command}");
                     response = "-";
                 }
+
+                break;
+            }
+            case "getcurrentsplitname":
+            {
+                response = State.CurrentSplit != null ? State.CurrentSplit.Name : "-";
 
                 break;
             }
             case "getlastsplitname":
             case "getprevioussplitname":
             {
-                if (State.CurrentSplitIndex > 0)
-                {
-                    response = State.Run[State.CurrentSplitIndex - 1].Name;
-                }
-                else
-                {
-                    response = "-";
-                }
+                response = State.CurrentSplitIndex > 0 ? State.Run[State.CurrentSplitIndex - 1].Name : "-";
+
+                break;
+            }
+            case "getnextsplitname":
+            case "getupcomingsplitname":
+            {
+                response = State.CurrentSplitIndex < State.Run.Count - 1 ? State.Run[State.CurrentSplitIndex + 1].Name : "-";
 
                 break;
             }
@@ -486,31 +582,44 @@ public class CommandServer
                 string comparison = args.Length > 1 ? args[1] : State.CurrentComparison;
                 TimeSpan? time = (State.CurrentPhase == TimerPhase.Ended)
                     ? State.CurrentTime[State.CurrentTimingMethod]
-                    : State.Run.Last().Comparisons[comparison][State.CurrentTimingMethod];
+                    : State.Run[^1].Comparisons[comparison][State.CurrentTimingMethod];
                 response = TimeFormatter.Format(time);
                 break;
             }
             case "getbestpossibletime":
             case "getpredictedtime":
             {
-                string comparison;
-                if (command == "getbestpossibletime")
-                {
-                    comparison = LiveSplit.Model.Comparisons.BestSegmentsComparisonGenerator.ComparisonName;
-                }
-                else
-                {
-                    comparison = args.Length > 1 ? args[1] : State.CurrentComparison;
-                }
-
+                string comparison = command == "getbestpossibletime"
+                    ? LiveSplit.Model.Comparisons.BestSegmentsComparisonGenerator.ComparisonName
+                    : args.Length > 1 ? args[1] : State.CurrentComparison;
                 TimeSpan? prediction = PredictTime(State, comparison);
                 response = TimeFormatter.Format(prediction);
+                break;
+            }
+            case "getpausedrealtime":
+            {
+                response = TimeFormatter.Format(State.PauseTime);
+                break;
+            }
+            case "getpausedgametime":
+            {
+                response = TimeFormatter.Format(State.GameTimePauseTime);
+                break;
+            }
+            case "getoffset":
+            {
+                response = TimeFormatter.Format(State.Run.Offset);
                 break;
             }
             case "gettimerphase":
             case "getcurrenttimerphase":
             {
                 response = State.CurrentPhase.ToString();
+                break;
+            }
+            case "getcomparisonname":
+            {
+                response = State.CurrentComparison.ToString();
                 break;
             }
             case "setcomparison":
@@ -530,6 +639,11 @@ public class CommandServer
                         break;
                 }
 
+                break;
+            }
+            case "gettimingmethod":
+            {
+                response = State.CurrentTimingMethod.ToString();
                 break;
             }
             case "setsplitname":
@@ -561,6 +675,11 @@ public class CommandServer
                     }
 
                     title = options[1];
+                }
+
+                if (index < 0)
+                {
+                    index = State.Run.Count - Math.Abs(index);
                 }
 
                 if (index >= 0 && index < State.Run.Count)
@@ -611,9 +730,174 @@ public class CommandServer
                 State.Run.Metadata.SetCustomVariable(options[0], options[1]);
                 break;
             }
+            case "globalhotkeysenabled":
+            {
+                response = State.Settings.HotkeyProfiles[State.CurrentHotkeyProfile].GlobalHotkeysEnabled.ToString();
+                break;
+            }
+            case "enableglobalhotkeys":
+            {
+                State.Settings.HotkeyProfiles[State.CurrentHotkeyProfile].GlobalHotkeysEnabled = true;
+                break;
+            }
+            case "disableglobalhotkeys":
+            {
+                State.Settings.HotkeyProfiles[State.CurrentHotkeyProfile].GlobalHotkeysEnabled = false;
+                break;
+            }
+            case "switchhotkeyprofile":
+            {
+                if (State.Settings.HotkeyProfiles.ContainsKey(args[1]))
+                {
+                    State.CurrentHotkeyProfile = args[1];
+                    RefreshHotkeyHooks();
+                }
+                else
+                {
+                    Log.Error($"[Server] Hotkey profile not found: {args[1]}");
+                }
+
+                break;
+            }
             case "ping":
             {
                 response = "pong";
+                break;
+            }
+            case "getlayoutpath":
+            {
+                response = !string.IsNullOrEmpty(State.Layout.FilePath) ? State.Layout.FilePath.ToString() : "-";
+                break;
+            }
+            case "savelayout":
+            case "savelayoutas":
+            {
+                bool success = false;
+                if (command == "savelayoutas")
+                {
+                    if (args[1].EndsWith(".lsl"))
+                    {
+                        State.Layout.FilePath = args[1];
+                    }
+                    else
+                    {
+                        Log.Error($"[Server] Cannot save layout with a file type that is not .lsl: {args[1]}");
+                        break;
+                    }
+                }
+
+                success = SaveLayout(true);
+                if (!success)
+                {
+                    Log.Error($"[Server] Failed to save current layout");
+                }
+
+                response = success.ToString();
+                break;
+            }
+            case "getsplitspath":
+            {
+                response = !string.IsNullOrEmpty(State.Run.FilePath) ? State.Run.FilePath.ToString() : "-";
+                break;
+            }
+            case "savesplits":
+            case "savesplitsas":
+            {
+                bool success = false;
+                if (command == "savesplitsas")
+                {
+                    if (args[1].EndsWith(".lss"))
+                    {
+                        State.Run.FilePath = args[1];
+                    }
+                    else
+                    {
+                        Log.Error($"[Server] Cannot save splits with a file type that is not .lss: {args[1]}");
+                        break;
+                    }
+                }
+
+                success = SaveSplits(false, true);
+                if (!success)
+                {
+                    Log.Error($"[Server] Failed to save current splits");
+                }
+
+                response = success.ToString();
+                break;
+            }
+            case "switchlayout":
+            {
+                bool success = false;
+                success = OpenLayoutFromFile(args[1], true);
+                if (!success)
+                {
+                    Log.Error($"[Server] Failed to change current layout to {args[1]}");
+                }
+
+                response = success.ToString();
+                break;
+            }
+            case "switchsplits":
+            {
+                bool success = false;
+                success = OpenRunFromFile(args[1], true);
+                if (!success)
+                {
+                    Log.Error($"[Server] Failed to change current splits to {args[1]}");
+                }
+
+                response = success.ToString();
+                break;
+            }
+            case "getsplitsscreenshot":
+            case "savesplitsscreenshot":
+            {
+                Image image;
+                try
+                {
+                    image = ScreenShotFunction();
+                }
+                catch (Exception e)
+                {
+                    Log.Error(e);
+                    Log.Error($"[Server] Failed to gather splits screenshot");
+                    break;
+                }
+
+                if (command == "getsplitsscreenshot")
+                {
+                    try
+                    {
+                        using var stream = new MemoryStream();
+                        image.Save(stream, ImageFormat.Png);
+                        response = $"data:image/png;base64,{Convert.ToBase64String(stream.ToArray())}";
+                    }
+                    catch (Exception e)
+                    {
+                        Log.Error(e);
+                        Log.Error($"[Server] Failed to Base64 encode splits screenshot");
+                    }
+                }
+
+                else
+                {
+                    bool success;
+                    try
+                    {
+                        image.Save(args[1]);
+                        success = true;
+                    }
+                    catch (Exception e)
+                    {
+                        Log.Error(e);
+                        Log.Error($"[Server] Failed to save screenshot file: {args[1]}");
+                        success = false;
+                    }
+
+                    response = success.ToString();
+                }
+
                 break;
             }
             case "getattemptcount":
@@ -624,6 +908,36 @@ public class CommandServer
             case "getcompletedcount":
             {
                 response = State.Run.AttemptHistory.Count(x => x.Time.RealTime != null).ToString();
+                break;
+            }
+            case "getautosplitterpath":
+            {
+                response = !string.IsNullOrEmpty(State.Run.AutoSplitter?.LocalPath) ? State.Run.AutoSplitter.LocalPath.ToString() : "-";
+                break;
+            }
+            case "autosplitteractivated":
+            {
+                response = (State.Run.AutoSplitter != null && State.Run.AutoSplitter.IsActivated).ToString();
+                break;
+            }
+            case "gethotkeyprofile":
+            {
+                response = State.CurrentHotkeyProfile.ToString();
+                break;
+            }
+            case "getlivesplitversion":
+            {
+                response = Git.Version.ToString() ?? "Unknown Version";
+                break;
+            }
+            case "getlivesplitpath":
+            {
+                response = Assembly.GetEntryAssembly().Location.ToString();
+                break;
+            }
+            case "getservertype":
+            {
+                response = ServerState.ToString();
                 break;
             }
             case "subtimerphase":
@@ -745,15 +1059,15 @@ public class CommandServer
                 delta = liveDelta;
             }
 
-            return delta + state.Run.Last().Comparisons[comparison][State.CurrentTimingMethod];
+            return delta + state.Run[^1].Comparisons[comparison][State.CurrentTimingMethod];
         }
         else if (state.CurrentPhase == TimerPhase.Ended)
         {
-            return state.Run.Last().SplitTime[State.CurrentTimingMethod];
+            return state.Run[^1].SplitTime[State.CurrentTimingMethod];
         }
         else
         {
-            return state.Run.Last().Comparisons[comparison][State.CurrentTimingMethod];
+            return state.Run[^1].Comparisons[comparison][State.CurrentTimingMethod];
         }
     }
 
@@ -776,3 +1090,8 @@ public class CommandServer
         WaitingServerPipe.Dispose();
     }
 }
+file sealed record CategoryMetadata(
+    string Region,
+    string Platform,
+    bool UsesEmulator,
+    IReadOnlyDictionary<string, string> Variables);

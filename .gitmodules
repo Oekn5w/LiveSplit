@@ -68,7 +68,7 @@
 	branch = master
 [submodule "LiveSplit/Components/LiveSplit.Subsplits"]
 	path = components/LiveSplit.Subsplits
-	url = https://github.com/oekn5w/LiveSplit.Subsplits
+	url = https://github.com/Oekn5w/LiveSplit.Subsplits
 [submodule "LiveSplit/Components/LiveSplit.WorldRecord"]
 	path = components/LiveSplit.WorldRecord
 	url = https://github.com/LiveSplit/LiveSplit.WorldRecord.git

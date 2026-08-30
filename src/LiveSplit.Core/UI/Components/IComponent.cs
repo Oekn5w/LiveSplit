@@ -1,10 +1,9 @@
-﻿using System;
+﻿using LiveSplit.Model;
+using System;
 using System.Collections.Generic;
 using System.Drawing;
 using System.Windows.Forms;
 using System.Xml;
-
-using LiveSplit.Model;
 
 namespace LiveSplit.UI.Components;
 
@@ -103,7 +102,6 @@ public interface IComponent : IDisposable
     // </summary>
     // <returns> Returns a Hash Code of the component's settings.</returns>
     // int GetSettingsHashCode()
-
 }
 
 public interface IComponentAdditional : IComponent

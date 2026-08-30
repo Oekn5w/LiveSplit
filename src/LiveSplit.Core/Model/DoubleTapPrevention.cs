@@ -1,7 +1,6 @@
-﻿using System;
+﻿using LiveSplit.Model.Input;
+using System;
 using System.Collections.Generic;
-
-using LiveSplit.Model.Input;
 
 namespace LiveSplit.Model;
 
@@ -13,8 +12,8 @@ public class DoubleTapPrevention : ITimerModel
         set => InternalModel.CurrentState = value;
     }
 
-    private TimeSpan Delay = new(0, 0, 0, 0, 300);
-    private TimeSpan LongDelay = new(0, 0, 0, 0, 600);
+    private readonly TimeSpan Delay = new(0, 0, 0, 0, 300);
+    private readonly TimeSpan LongDelay = new(0, 0, 0, 0, 600);
 
     private TimeStamp LastEvent;
 
